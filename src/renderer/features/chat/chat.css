@@ -1,0 +1,146 @@
+/* Chat stream styles (WP5). Animates only transform / opacity / filter. Colors come from tokens. */
+
+.ccw-chat {
+  /* shiki css-variables theme -> design tokens */
+  --shiki-foreground: var(--text-primary);
+  --shiki-background: transparent;
+  --shiki-token-constant: var(--ansi-cyan);
+  --shiki-token-string: var(--ansi-green);
+  --shiki-token-comment: var(--text-tertiary);
+  --shiki-token-keyword: var(--ansi-magenta);
+  --shiki-token-parameter: var(--ansi-yellow);
+  --shiki-token-function: var(--ansi-blue);
+  --shiki-token-string-expression: var(--ansi-green);
+  --shiki-token-punctuation: var(--text-secondary);
+  --shiki-token-link: var(--accent-text);
+}
+
+.ccw-chat .shiki,
+.ccw-chat .shiki span {
+  background: transparent !important;
+}
+.ccw-chat .shiki {
+  margin: 0;
+  white-space: pre;
+}
+
+/* Newly appended list items only (the virtual row wrapper itself is never animated). */
+@keyframes ccw-item-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ccw-item-in { animation: ccw-item-in var(--dur-base) var(--ease-out) both; }
+
+/* Streaming text: tokens fade in from blur 2px. */
+@keyframes ccw-token-in {
+  from { opacity: 0; filter: blur(2px); }
+  to { opacity: 1; filter: blur(0); }
+}
+.ccw-token { animation: ccw-token-in 240ms var(--ease-out) both; }
+
+@keyframes ccw-caret {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.ccw-streaming .ccw-prose > :last-child:not([data-testid='code-block'])::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  background: var(--accent-gradient);
+  animation: ccw-caret var(--dur-caret) ease-in-out infinite;
+}
+
+@keyframes ccw-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+.ccw-shimmer {
+  color: transparent;
+  background-image: linear-gradient(100deg, var(--text-tertiary) 35%, var(--text-primary) 50%, var(--text-tertiary) 65%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: ccw-shimmer var(--dur-shimmer) linear infinite;
+}
+
+/* Thinking collapse: grid rows 0fr -> 1fr (spec exception for this single block). */
+.ccw-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-slow) var(--ease-out);
+}
+.ccw-collapse[data-open='true'] { grid-template-rows: 1fr; }
+.ccw-collapse > div { overflow: hidden; min-height: 0; }
+
+/* Composer: 1px border, accent glow on focus, conic sweep while running. */
+@property --sweep {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes ccw-sweep { to { --sweep: 360deg; } }
+.ccw-composer {
+  position: relative;
+  border-radius: var(--radius-md);
+  background: var(--bg-2);
+  box-shadow: 0 0 0 1px var(--border-strong), var(--shadow-md);
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+.ccw-composer:focus-within {
+  box-shadow: 0 0 0 1px var(--accent-from), var(--shadow-glow);
+}
+.ccw-composer[data-running='true'] {
+  box-shadow: 0 0 0 1px transparent, var(--shadow-md);
+}
+.ccw-composer[data-running='true']::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: calc(var(--radius-md) + 1px);
+  padding: 1px;
+  background: var(--accent-conic);
+  -webkit-mask: linear-gradient(var(--bg-0) 0 0) content-box, linear-gradient(var(--bg-0) 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: ccw-sweep var(--dur-sweep) linear infinite;
+}
+.ccw-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 220px;
+  background: var(--glow-ambient);
+}
+
+/* Markdown prose */
+.ccw-prose { font-size: var(--text-md); line-height: var(--leading-prose); color: var(--text-primary); overflow-wrap: anywhere; }
+.ccw-prose > * + * { margin-top: 0.75em; }
+.ccw-prose h1, .ccw-prose h2, .ccw-prose h3, .ccw-prose h4 { font-weight: var(--weight-semibold); letter-spacing: var(--tracking-tight); line-height: var(--leading-tight); margin-top: 1.1em; }
+.ccw-prose h1 { font-size: var(--text-xl); }
+.ccw-prose h2 { font-size: var(--text-lg); }
+.ccw-prose ul { list-style: disc; padding-left: 1.4em; }
+.ccw-prose ol { list-style: decimal; padding-left: 1.4em; }
+.ccw-prose li + li { margin-top: 0.25em; }
+.ccw-prose a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.ccw-prose blockquote { border-left: 2px solid var(--border-strong); padding-left: 12px; color: var(--text-secondary); }
+.ccw-prose hr { border: 0; border-top: 1px solid var(--border); }
+.ccw-prose :not(pre) > code {
+  font-family: var(--font-mono); font-size: 0.9em; padding: 1px 5px;
+  border-radius: var(--radius-xs); background: var(--bg-3); border: 1px solid var(--border);
+}
+.ccw-prose table { border-collapse: collapse; display: block; overflow-x: auto; font-size: var(--text-base); }
+.ccw-prose th, .ccw-prose td { border: 1px solid var(--border); padding: 4px 10px; text-align: left; }
+.ccw-prose th { background: var(--bg-2); font-weight: var(--weight-medium); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ccw-token, .ccw-item-in { animation: none; }
+  .ccw-streaming .ccw-prose > :last-child:not([data-testid='code-block'])::after { animation: none; opacity: 1; }
+  .ccw-shimmer { animation: none; color: var(--text-secondary); background: none; }
+  .ccw-composer[data-running='true']::before { animation: none; }
+  .ccw-collapse { transition: none; }
+}
