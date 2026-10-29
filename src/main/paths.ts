@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { join, parse, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 /**
@@ -34,4 +34,12 @@ export function resolveClaudeExecutable(): string | undefined {
   const local = join(homedir(), '.local', 'bin', isWin ? 'claude.exe' : 'claude')
   if (existsSync(local)) return local
   return undefined
+}
+
+/** Stable comparison key for a cwd: resolved, no trailing separator (except a bare root), lowercased on Windows. */
+export function normalizeCwdKey(p: string): string {
+  let r = resolve(p)
+  const root = parse(r).root
+  while (r.length > root.length && /[\\/]$/.test(r)) r = r.slice(0, -1)
+  return process.platform === 'win32' ? r.toLowerCase() : r
 }
