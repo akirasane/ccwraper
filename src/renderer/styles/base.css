@@ -1,0 +1,105 @@
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-0);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+/* Thin scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Keyboard focus only */
+:focus {
+  outline: none;
+}
+:focus-visible {
+  outline: none;
+  box-shadow: var(--accent-ring);
+}
+
+/* Noise overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: var(--noise-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Keyframes (transform / opacity / filter only) */
+@keyframes ccw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ccw-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+@keyframes ccw-dialog-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); filter: blur(6px); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); filter: blur(0); }
+}
+@keyframes ccw-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ccw-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes ccw-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.ccw-spin { animation: ccw-spin 0.8s linear infinite; }
+.ccw-shake { animation: ccw-shake 360ms var(--ease-out) 1; }
+.ccw-dialog-in { animation: ccw-dialog-in var(--dur-base) var(--ease-out) both; }
+.ccw-fade-in { animation: ccw-fade-in var(--dur-base) var(--ease-out) both; }
+.ccw-fade-out { animation: ccw-fade-out var(--dur-fast) var(--ease-out) both; }
+.ccw-toast-in { animation: ccw-slide-up var(--dur-slow) var(--ease-out) both; }
+
+/* The spinner carries state, so it stays but slows down; decorative loops stop. */
+@media (prefers-reduced-motion: reduce) {
+  .ccw-spin { animation-duration: 1.6s; }
+  .ccw-shake { animation: none; }
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+}

@@ -59,7 +59,7 @@ export function RawLogPage(): React.JSX.Element {
         >
           Browse
         </button>
-        <span className="text-[var(--text-2)]">status: {status}</span>
+        <span className="text-[var(--text-secondary)]">status: {status}</span>
         <button
           className="rounded-lg border border-white/10 bg-[var(--bg-2)] px-3 py-1"
           disabled={!localId}
@@ -82,7 +82,7 @@ export function RawLogPage(): React.JSX.Element {
       <div className="flex-1 overflow-auto rounded-xl border border-white/10 bg-[var(--bg-1)] p-2 font-mono text-[12px]">
         {events.map((le) => (
           <div key={le.n} className="whitespace-pre-wrap break-all border-b border-white/5 py-0.5">
-            <span className="text-[var(--text-3)]">{le.n} </span>
+            <span className="text-[var(--text-tertiary)]">{le.n} </span>
             {JSON.stringify(le.event)}
           </div>
         ))}

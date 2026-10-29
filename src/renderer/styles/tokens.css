@@ -1,0 +1,153 @@
+/* ccwraper design tokens — modern premium dark (SPEC §10, §10.1)
+   Source of truth for Tailwind theme mapping. Dark-first; light theme TBD.
+   Design: https://claude.ai/design/p/e1a57c8b-b4b4-44c3-b06f-2a00b33d5f5a */
+
+:root {
+  color-scheme: dark;
+
+  /* ---------- Surfaces (layered) ---------- */
+  --bg-0: #0A0A0C;              /* app background, title bar, status bar */
+  --bg-1: #101014;              /* panels: rail, inspector, terminal */
+  --bg-2: #16161B;              /* cards: tool cards, messages, inputs */
+  --bg-3: #1D1D24;              /* hover / raised / selected rows */
+  --bg-glass: rgba(22, 22, 27, 0.72);   /* palette, dialogs, terminal header; pair with --blur-glass */
+  --bg-glass-strong: rgba(16, 16, 20, 0.86);
+  --bg-scrim: rgba(5, 5, 7, 0.55);      /* behind modal dialogs */
+  --blur-glass: 20px;                   /* backdrop-filter: blur(var(--blur-glass)) saturate(140%) */
+
+  /* ---------- Borders ---------- */
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.10);   /* hover / focus-within */
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --highlight-inset: inset 0 1px 0 rgba(255, 255, 255, 0.04);  /* raised-card top highlight */
+
+  /* ---------- Text ---------- */
+  --text-primary: #ECECF1;      /* 16.1:1 on bg-1 */
+  --text-secondary: #9A9AA8;    /* 6.8:1 on bg-1 */
+  --text-tertiary: #82828F;     /* 5.0:1 on bg-1 — smallest text that must be read (meta, timestamps) */
+  --text-muted: #62626F;        /* 3.2:1 — placeholders, disabled, decorative ONLY (fails AA for body) */
+  --text-on-accent: #FFFFFF;    /* only on --accent-solid gradient */
+
+  /* ---------- Accent (one gradient, used sparingly) ---------- */
+  --accent-from: #8B5CF6;       /* violet-500 */
+  --accent-to: #3B82F6;         /* blue-500 */
+  --accent-gradient: linear-gradient(135deg, var(--accent-from), var(--accent-to));
+  --accent-conic: conic-gradient(from var(--sweep, 0deg), var(--accent-from), var(--accent-to), #22D3EE, var(--accent-from));
+  /* Filled surfaces that carry white text use the deeper pair (AA: 5.7 / 5.2) */
+  --accent-solid-from: #7C3AED;
+  --accent-solid-to: #2563EB;
+  --accent-solid: linear-gradient(135deg, var(--accent-solid-from), var(--accent-solid-to));
+  --accent-text: #A78BFA;       /* accent-colored text/links, 7.0:1 on bg-1 */
+  --accent-tint: rgba(139, 92, 246, 0.12);
+  --accent-ring: 0 0 0 1px rgba(139, 92, 246, 0.55), 0 0 0 4px rgba(139, 92, 246, 0.18);
+  --selection: rgba(139, 92, 246, 0.25);
+
+  /* ---------- Semantic (fg + 10% tinted bg) ---------- */
+  --ok: #4ADE80;       --ok-bg: rgba(74, 222, 128, 0.10);     --ok-border: rgba(74, 222, 128, 0.22);
+  --warn: #FBBF24;     --warn-bg: rgba(251, 191, 36, 0.10);   --warn-border: rgba(251, 191, 36, 0.22);
+  --danger: #F87171;   --danger-bg: rgba(248, 113, 113, 0.10); --danger-border: rgba(248, 113, 113, 0.24);
+  --info: #60A5FA;     --info-bg: rgba(96, 165, 250, 0.10);   --info-border: rgba(96, 165, 250, 0.22);
+
+  /* Diff */
+  --diff-add-bg: rgba(74, 222, 128, 0.09);
+  --diff-add-gutter: rgba(74, 222, 128, 0.18);
+  --diff-del-bg: rgba(248, 113, 113, 0.09);
+  --diff-del-gutter: rgba(248, 113, 113, 0.18);
+  --diff-flash: rgba(139, 92, 246, 0.28);
+
+  /* ---------- Radii ---------- */
+  --radius-xs: 4px;    /* kbd, inline code */
+  --radius-sm: 8px;    /* buttons, chips, inputs, rows */
+  --radius-md: 12px;   /* cards, composer, terminal */
+  --radius-lg: 16px;   /* dialogs, command palette */
+  --radius-full: 999px;
+
+  /* ---------- Shadows (soft, large blur, low opacity; glow only on accent) ---------- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-md: 0 4px 16px -4px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.30);
+  --shadow-lg: 0 24px 64px -12px rgba(0, 0, 0, 0.60), 0 8px 24px -8px rgba(0, 0, 0, 0.40);
+  --shadow-glow: 0 0 0 1px rgba(139, 92, 246, 0.35), 0 8px 32px -8px rgba(124, 58, 237, 0.55);
+  --glow-ambient: radial-gradient(60% 60% at 50% 100%, rgba(139, 92, 246, 0.10), rgba(59, 130, 246, 0.04) 45%, transparent 75%);
+  --noise-opacity: 0.025;
+
+  /* ---------- Type ---------- */
+  --font-sans: "Geist", "Geist Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --text-2xs: 10px;  /* kbd, badges */
+  --text-xs: 11px;   /* status bar, meta, section labels */
+  --text-sm: 12px;   /* chips, mono in cards */
+  --text-base: 13px; /* UI default */
+  --text-md: 14px;   /* chat prose */
+  --text-lg: 16px;   /* dialog titles */
+  --text-xl: 20px;   /* page headings */
+  --text-2xl: 28px;  /* empty-state / design page titles */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-prose: 1.65;
+  --tracking-tight: -0.011em;   /* >= 16px */
+  --tracking-tighter: -0.022em; /* >= 20px */
+  --tracking-caps: 0.06em;      /* uppercase section labels */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ---------- Layout ---------- */
+  --titlebar-h: 40px;
+  --tab-h: 28px;
+  --rail-w: 232px;
+  --rail-w-collapsed: 56px;
+  --inspector-w: 320px;
+  --inspector-w-collapsed: 44px;
+  --statusbar-h: 26px;
+  --terminal-h: 260px;          /* default; min 120px, max 70vh */
+  --terminal-header-h: 36px;
+  --chat-max-w: 760px;
+  --composer-min-h: 92px;
+
+  /* ---------- Motion ---------- */
+  --dur-instant: 80ms;    /* palette open, press */
+  --dur-fast: 120ms;      /* hover, color, chip morph */
+  --dur-base: 180ms;      /* card enter, toggle, dialog */
+  --dur-slow: 250ms;      /* panel slide, collapse */
+  --dur-shimmer: 1600ms;
+  --dur-sweep: 2400ms;    /* composer conic sweep while running */
+  --dur-caret: 1060ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);   /* toggles, snap; framer: {type:"spring", stiffness:500, damping:32} */
+  --stagger: 30ms;
+  --press-scale: 0.98;
+  --hover-lift: -1px;
+
+  /* ---------- Terminal ANSI 16 (bg = --bg-1). All AA >= 4.5 except black (bg role) ---------- */
+  --term-bg: #101014;
+  --term-fg: #D4D4DC;
+  --term-cursor: #A78BFA;
+  --term-cursor-accent: #101014;
+  --term-selection: rgba(139, 92, 246, 0.25);
+  --ansi-black: #3A3A45;
+  --ansi-red: #F87171;
+  --ansi-green: #4ADE80;
+  --ansi-yellow: #FBBF24;
+  --ansi-blue: #60A5FA;
+  --ansi-magenta: #C084FC;
+  --ansi-cyan: #22D3EE;
+  --ansi-white: #D4D4DC;
+  --ansi-bright-black: #82828F;
+  --ansi-bright-red: #FCA5A5;
+  --ansi-bright-green: #86EFAC;
+  --ansi-bright-yellow: #FDE68A;
+  --ansi-bright-blue: #93C5FD;
+  --ansi-bright-magenta: #D8B4FE;
+  --ansi-bright-cyan: #67E8F9;
+  --ansi-bright-white: #F4F4F7;
+}
+
+@property --sweep { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms; --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms;
+    --stagger: 0ms; --press-scale: 1; --hover-lift: 0px;
+  }
+}
