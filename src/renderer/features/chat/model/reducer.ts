@@ -251,16 +251,22 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
     }
     case 'result': {
       const next = endTurn(conv, now, false)
+      // An interrupted turn reports an error result with zero usage and zero cost: keep the last real
+      // context usage and cost instead of dropping the meters to 0.
+      const u = e.usage
+      const noUsage = u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheCreationTokens === 0
+      const prev = e.isError && noUsage ? conv.lastResult : undefined
+      const contextWindow = e.contextWindow ?? prev?.contextWindow
       return {
         ...next,
         status: next.status === 'error' ? 'error' : 'idle',
         lastResult: {
-          costUsd: e.costUsd,
+          costUsd: prev ? Math.max(prev.costUsd, e.costUsd) : e.costUsd,
           durationMs: e.durationMs,
           turns: e.turns,
-          usage: e.usage,
+          usage: prev ? prev.usage : e.usage,
           isError: e.isError,
-          ...(e.contextWindow !== undefined ? { contextWindow: e.contextWindow } : {}),
+          ...(contextWindow !== undefined ? { contextWindow } : {}),
           ...(e.resultText !== undefined ? { resultText: e.resultText } : {})
         }
       }

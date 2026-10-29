@@ -155,6 +155,16 @@ describe('reducer', () => {
     expect(c.lastResult?.isError).toBe(true)
   })
 
+  it('interrupted (zero-usage error) result keeps the previous context usage and cost', () => {
+    const ok: SessionEvent = { t: 'result', costUsd: 0.2, durationMs: 1, turns: 1, usage, isError: false, contextWindow: 1000 }
+    const zero = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }
+    const c = run([ok, { t: 'result', costUsd: 0, durationMs: 1, turns: 0, usage: zero, isError: true }])
+    expect(c.lastResult?.costUsd).toBe(0.2)
+    expect(c.lastResult?.contextWindow).toBe(1000)
+    expect(selectContextUsage(c)).toBeCloseTo(0.001)
+    expect(c.lastResult?.isError).toBe(true)
+  })
+
   it('error becomes an inline item and status error (kept by a following result)', () => {
     let c = reduce(fresh(), { t: 'error', message: 'bad' })
     expect(c.items[0]).toMatchObject({ kind: 'error', message: 'bad' })
