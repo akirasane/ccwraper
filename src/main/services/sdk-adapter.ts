@@ -111,8 +111,11 @@ function stringifyToolResult(content: unknown): string {
   if (Array.isArray(content)) {
     return content
       .map((c) => {
-        const b = c as { type?: string; text?: string }
-        return b.type === 'text' && typeof b.text === 'string' ? b.text : JSON.stringify(c)
+        const b = c as { type?: string; text?: string; source?: { media_type?: string } }
+        if (b.type === 'text' && typeof b.text === 'string') return b.text
+        // Never inline base64 image payloads into the transcript text.
+        if (b.type === 'image') return `[image${b.source?.media_type ? `: ${b.source.media_type}` : ''}]`
+        return JSON.stringify(c)
       })
       .join('\n')
   }

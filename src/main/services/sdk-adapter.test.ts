@@ -86,6 +86,28 @@ describe('mapMessage', () => {
     expect(ev).toEqual([{ t: 'tool_result', toolUseId: 'tu1', content: 'out', isError: true }])
   })
 
+  it('tool_result image blocks become a placeholder, never base64 text', () => {
+    const ev = mapMessage(
+      msg({
+        type: 'user',
+        message: {
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'tu2',
+              content: [
+                { type: 'text', text: 'shot taken' },
+                { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: 'AAAA'.repeat(50) } }
+              ]
+            }
+          ]
+        }
+      }),
+      { msgId: '' }
+    )
+    expect(ev).toEqual([{ t: 'tool_result', toolUseId: 'tu2', content: 'shot taken\n[image: image/jpeg]', isError: false }])
+  })
+
   it('maps result to result + idle status', () => {
     const ev = mapMessage(
       msg({
