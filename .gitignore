@@ -1,0 +1,12 @@
+node_modules/
+dist/
+out/
+release/
+.vite/
+*.log
+.env
+.env.*
+.DS_Store
+Thumbs.db
+*.sqlite
+graphify-out/
