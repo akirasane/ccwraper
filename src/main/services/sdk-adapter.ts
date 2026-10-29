@@ -23,6 +23,12 @@ export interface AdapterOptions {
   fork?: boolean
   /** Override binary path; otherwise resolved via resolveClaudeExecutable(). */
   claudePath?: string
+  /** Defaults to ['user','project','local'] (SDK loads none by default). */
+  settingSources?: Array<'user' | 'project' | 'local'>
+  /** Request extended thinking so thinking_delta events are produced. */
+  thinking?: boolean
+  /** CLI stderr lines (useful because spawn failures are reported generically). */
+  onStderr?: (line: string) => void
   /** Initial prompt. Further prompts via send(). */
   prompt: string
   onEvent: (e: SessionEvent) => void
@@ -198,7 +204,9 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
   const options: Options = {
     cwd: opts.cwd,
     includePartialMessages: true,
-    settingSources: ['user', 'project', 'local'],
+    ...(opts.onStderr ? { stderr: opts.onStderr } : {}),
+    settingSources: opts.settingSources ?? ['user', 'project', 'local'],
+    ...(opts.thinking ? { thinking: { type: 'enabled' as const, budgetTokens: 2000, display: 'summarized' as const } } : {}),
     permissionMode: (opts.permissionMode ?? 'default') as SdkPermissionMode,
     ...(opts.model ? { model: opts.model } : {}),
     ...(opts.resumeId ? { resume: opts.resumeId, forkSession: opts.fork === true } : {}),
@@ -226,11 +234,17 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
   opts.onEvent({ t: 'status', state: 'running' })
   const q: Query = sdk.query({ prompt: input, options })
   const state = { msgId: '' }
+  let interrupted = false
 
   const done = (async () => {
     try {
       for await (const m of q) {
-        for (const e of mapMessage(m, state)) opts.onEvent(e)
+        for (const e of mapMessage(m, state)) {
+          // An interrupted turn ends with an error-subtype result; present it as idle, not error.
+          if (interrupted && e.t === 'status' && e.state === 'error') opts.onEvent({ t: 'status', state: 'idle' })
+          else opts.onEvent(e)
+          if (e.t === 'result') interrupted = false
+        }
       }
     } catch (err) {
       opts.onEvent({ t: 'error', message: err instanceof Error ? err.message : String(err) })
@@ -244,6 +258,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
       input.push(text)
     },
     async interrupt() {
+      interrupted = true
       await q.interrupt()
       opts.onEvent({ t: 'status', state: 'idle' })
     },
