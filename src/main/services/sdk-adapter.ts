@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   Options,
+  PermissionUpdate,
   PermissionMode as SdkPermissionMode,
   PermissionResult,
   Query,
@@ -15,6 +16,10 @@ import { resolveClaudeExecutable } from '../paths'
 
 export type PermissionModeName = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'dontAsk' | 'auto'
 
+export type QueryImpl = (p: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => Query
+
+export type RememberScope = 'once' | 'session' | 'always'
+
 export interface AdapterOptions {
   cwd: string
   model?: string
@@ -25,8 +30,12 @@ export interface AdapterOptions {
   claudePath?: string
   /** Defaults to ['user','project','local'] (SDK loads none by default). */
   settingSources?: Array<'user' | 'project' | 'local'>
-  /** Request extended thinking so thinking_delta events are produced. */
+  /** Request adaptive thinking (summarized) so thinking blocks/deltas are produced. */
   thinking?: boolean
+  /** Raw SDK message tap (spike/fixture recording). */
+  onRaw?: (m: unknown) => void
+  /** Test seam: replaces the SDK's query(). */
+  queryImpl?: QueryImpl
   /** CLI stderr lines (useful because spawn failures are reported generically). */
   onStderr?: (line: string) => void
   /** Initial prompt. Further prompts via send(). */
@@ -39,7 +48,12 @@ export interface AdapterSession {
   interrupt(): Promise<void>
   setModel(model: string): Promise<void>
   setPermissionMode(mode: PermissionModeName): Promise<void>
-  replyPermission(reqId: string, decision: 'allow' | 'deny', updatedInput?: Record<string, unknown>): void
+  replyPermission(
+    reqId: string,
+    decision: 'allow' | 'deny',
+    remember?: RememberScope,
+    updatedInput?: Record<string, unknown>
+  ): void
   /** Resolves when the SDK message loop ends. */
   done: Promise<void>
   close(): void
@@ -105,12 +119,49 @@ function stringifyToolResult(content: unknown): string {
   return content == null ? '' : JSON.stringify(content)
 }
 
+/** Human label for the rule an "always allow" would write, e.g. `Bash(npm test:*)`. */
+export function ruleLabelFrom(suggestions: PermissionUpdate[] | undefined): string | undefined {
+  const add = suggestions?.find((s) => s.type === 'addRules')
+  const rule = add && add.type === 'addRules' ? add.rules[0] : undefined
+  if (!rule) return undefined
+  return rule.ruleContent ? `${rule.toolName}(${rule.ruleContent})` : rule.toolName
+}
+
+/** Build the SDK permission result for a user decision (D5 remember scopes). */
+export function buildPermissionResult(
+  decision: 'allow' | 'deny',
+  remember: RememberScope | undefined,
+  suggestions: PermissionUpdate[] | undefined,
+  updatedInput?: Record<string, unknown>
+): PermissionResult {
+  if (decision === 'deny') return { behavior: 'deny', message: 'Denied by user' }
+  const dest = remember === 'always' ? 'localSettings' : remember === 'session' ? 'session' : undefined
+  const updatedPermissions =
+    dest && suggestions?.length ? suggestions.map((s) => ({ ...s, destination: dest }) as PermissionUpdate) : undefined
+  return {
+    behavior: 'allow',
+    ...(updatedInput ? { updatedInput } : {}),
+    ...(updatedPermissions ? { updatedPermissions } : {})
+  }
+}
+
+function pickContextWindow(m: { modelUsage?: unknown }, model: string | undefined): number | undefined {
+  const mu = (m.modelUsage ?? {}) as Record<string, { contextWindow?: number }>
+  const own = model ? mu[model]?.contextWindow : undefined
+  if (typeof own === 'number' && own > 0) return own
+  const all = Object.values(mu)
+    .map((u) => u?.contextWindow)
+    .filter((n): n is number => typeof n === 'number' && n > 0)
+  return all.length ? Math.max(...all) : undefined
+}
+
 /** Translate one SDK message into zero or more normalized events. Exported for tests/spike. */
-export function mapMessage(m: SDKMessage, state: { msgId: string }): SessionEvent[] {
+export function mapMessage(m: SDKMessage, state: { msgId: string; model?: string }): SessionEvent[] {
   const out: SessionEvent[] = []
   switch (m.type) {
     case 'system': {
       if (m.subtype === 'init') {
+        state.model = m.model
         out.push({
           t: 'init',
           sessionId: m.session_id,
@@ -177,6 +228,7 @@ export function mapMessage(m: SDKMessage, state: { msgId: string }): SessionEven
       break
     }
     case 'result': {
+      const contextWindow = pickContextWindow(m as { modelUsage?: unknown }, state.model)
       out.push({
         t: 'result',
         costUsd: m.total_cost_usd,
@@ -184,6 +236,7 @@ export function mapMessage(m: SDKMessage, state: { msgId: string }): SessionEven
         turns: m.num_turns,
         usage: mapUsage(m.usage),
         isError: m.is_error,
+        ...(contextWindow ? { contextWindow } : {}),
         ...(m.subtype === 'success' ? { resultText: m.result } : {})
       })
       out.push({ t: 'status', state: m.is_error ? 'error' : 'idle' })
@@ -196,55 +249,60 @@ export function mapMessage(m: SDKMessage, state: { msgId: string }): SessionEven
 }
 
 export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSession> {
-  const sdk = await import('@anthropic-ai/claude-agent-sdk')
+  const queryFn: QueryImpl = opts.queryImpl ?? (await import('@anthropic-ai/claude-agent-sdk')).query
   const input = new InputQueue()
-  const pending = new Map<string, (r: PermissionResult) => void>()
-  const claudePath = opts.claudePath ?? resolveClaudeExecutable()
+  const pending = new Map<string, { resolve: (r: PermissionResult) => void; suggestions?: PermissionUpdate[] }>()
+  const claudePath = opts.claudePath ?? (opts.queryImpl ? undefined : resolveClaudeExecutable())
 
   const options: Options = {
     cwd: opts.cwd,
     includePartialMessages: true,
     ...(opts.onStderr ? { stderr: opts.onStderr } : {}),
     settingSources: opts.settingSources ?? ['user', 'project', 'local'],
-    ...(opts.thinking ? { thinking: { type: 'enabled' as const, budgetTokens: 2000, display: 'summarized' as const } } : {}),
+    ...(opts.thinking ? { thinking: { type: 'adaptive' as const, display: 'summarized' as const } } : {}),
     permissionMode: (opts.permissionMode ?? 'default') as SdkPermissionMode,
     ...(opts.model ? { model: opts.model } : {}),
     ...(opts.resumeId ? { resume: opts.resumeId, forkSession: opts.fork === true } : {}),
     ...(claudePath ? { pathToClaudeCodeExecutable: claudePath } : {}),
-    canUseTool: (toolName, toolInput, { signal, title }) =>
+    canUseTool: (toolName, toolInput, { signal, title, suggestions }) =>
       new Promise<PermissionResult>((resolve) => {
         const reqId = randomUUID()
-        pending.set(reqId, resolve)
+        pending.set(reqId, { resolve, ...(suggestions ? { suggestions } : {}) })
         const onAbort = (): void => {
           if (pending.delete(reqId)) resolve({ behavior: 'deny', message: 'aborted', interrupt: true })
         }
         signal.addEventListener('abort', onAbort, { once: true })
         opts.onEvent({ t: 'status', state: 'waiting_permission' })
+        const ruleLabel = ruleLabelFrom(suggestions)
         opts.onEvent({
           t: 'permission_request',
           reqId,
           toolName,
           input: toolInput,
-          ...(title ? { title } : {})
+          ...(title ? { title } : {}),
+          ...(ruleLabel ? { ruleLabel } : {})
         })
       })
   }
 
   input.push(opts.prompt)
   opts.onEvent({ t: 'status', state: 'running' })
-  const q: Query = sdk.query({ prompt: input, options })
-  const state = { msgId: '' }
+  const q: Query = queryFn({ prompt: input, options })
+  const state: { msgId: string; model?: string } = { msgId: '' }
   let interrupted = false
+  let running = true
 
   const done = (async () => {
     try {
       for await (const m of q) {
+        opts.onRaw?.(m)
         for (const e of mapMessage(m, state)) {
           // An interrupted turn ends with an error-subtype result; present it as idle, not error.
           if (interrupted && e.t === 'status' && e.state === 'error') opts.onEvent({ t: 'status', state: 'idle' })
           else opts.onEvent(e)
-          if (e.t === 'result') interrupted = false
+          if (e.t === 'result') running = false
         }
+        if (m.type === 'result') interrupted = false
       }
     } catch (err) {
       opts.onEvent({ t: 'error', message: err instanceof Error ? err.message : String(err) })
@@ -254,31 +312,34 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
 
   return {
     send(text) {
+      running = true
       opts.onEvent({ t: 'status', state: 'running' })
       input.push(text)
     },
     async interrupt() {
+      if (!running && pending.size === 0) return
       interrupted = true
+      // Release pending permission prompts so the CLI is not left waiting on the UI.
+      for (const [id, p] of pending) {
+        pending.delete(id)
+        p.resolve({ behavior: 'deny', message: 'Interrupted', interrupt: true })
+      }
       await q.interrupt()
       opts.onEvent({ t: 'status', state: 'idle' })
     },
     setModel: (model) => q.setModel(model),
     setPermissionMode: (mode) => q.setPermissionMode(mode as SdkPermissionMode),
-    replyPermission(reqId, decision, updatedInput) {
-      const r = pending.get(reqId)
-      if (!r) return
+    replyPermission(reqId, decision, remember, updatedInput) {
+      const p = pending.get(reqId)
+      if (!p) return
       pending.delete(reqId)
-      r(
-        decision === 'allow'
-          ? { behavior: 'allow', ...(updatedInput ? { updatedInput } : {}) }
-          : { behavior: 'deny', message: 'Denied by user' }
-      )
+      p.resolve(buildPermissionResult(decision, remember, p.suggestions, updatedInput))
       opts.onEvent({ t: 'status', state: 'running' })
     },
     done,
     close() {
-      for (const [id, r] of pending) {
-        r({ behavior: 'deny', message: 'session closed' })
+      for (const [id, p] of pending) {
+        p.resolve({ behavior: 'deny', message: 'session closed' })
         pending.delete(id)
       }
       input.close()

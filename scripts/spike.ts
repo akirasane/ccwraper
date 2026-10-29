@@ -1,10 +1,20 @@
 // Headless verification of sdk-adapter. Run: npm run spike
 // Usage: tsx scripts/spike.ts [cwd]   (default cwd: D:\claude-tmp\spike-cwd)
 import { startSdkSession, type AdapterSession } from '../src/main/services/sdk-adapter'
-import { resolveClaudeExecutable } from '../src/main/paths'
+import { mkdirSync, appendFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { resolveClaudeBinary } from '../src/main/paths'
 import type { SessionEvent } from '../src/shared/events'
 
+const RECORD_DIR = process.env['SPIKE_RECORD']
 const cwd = process.argv[2] ?? 'D:\\claude-tmp\\spike-cwd'
+
+/** SPIKE_RECORD=<dir>: dump raw SDK messages (one JSON per line) for building SANITIZED fixtures. Never commit raw dumps. */
+function record(label: string, m: unknown): void {
+  if (!RECORD_DIR) return
+  mkdirSync(RECORD_DIR, { recursive: true })
+  appendFileSync(join(RECORD_DIR, label + '.jsonl'), `${JSON.stringify(m)}\n`)
+}
 
 function summarize(e: SessionEvent): string {
   switch (e.t) {
@@ -29,7 +39,12 @@ interface Run {
 async function start(
   label: string,
   prompt: string,
-  extra: { resumeId?: string; settingSources?: Array<'user' | 'project' | 'local'>; thinking?: boolean } = {}
+  extra: {
+    resumeId?: string
+    settingSources?: Array<'user' | 'project' | 'local'>
+    thinking?: boolean
+    model?: string
+  } = {}
 ): Promise<Run> {
   const events: SessionEvent[] = []
   const waiters: Array<{ pred: (e: SessionEvent) => boolean; res: (e: SessionEvent) => void }> = []
@@ -38,6 +53,7 @@ async function start(
     prompt,
     permissionMode: 'default',
     ...extra,
+    ...(RECORD_DIR ? { onRaw: (m: unknown) => record(label, m) } : {}),
     onEvent: (e) => {
       events.push(e)
       console.log(`[${label}] ${summarize(e)}`)
@@ -67,7 +83,7 @@ async function start(
 }
 
 async function main(): Promise<void> {
-  console.log('claude binary resolved to:', resolveClaudeExecutable() ?? '(SDK bundled)')
+  console.log('claude binary:', JSON.stringify(resolveClaudeBinary()))
   console.log('cwd:', cwd)
 
   if (!process.env['SPIKE_SKIP_123']) {
@@ -107,16 +123,20 @@ async function main(): Promise<void> {
   // settingSources: [] => no user allow-rules/plugins, so Bash must go through canUseTool (and it is cheaper).
   const c = await start('C', 'Use the Write tool to create a file named hello.txt in the current directory containing exactly: ccwrap-spike. Then reply done.', {
     settingSources: [],
-    thinking: true
+    ...(process.env['SPIKE_THINKING'] ? { thinking: true } : {}),
+    ...(process.env['SPIKE_MODEL'] ? { model: process.env['SPIKE_MODEL'] } : {})
   })
   const perm = await c.waitFor((e) => e.t === 'permission_request')
   if (perm.t === 'permission_request') {
     console.log('got permission_request for', perm.toolName, '-> allowing')
-    c.session.replyPermission(perm.reqId, 'allow')
+    console.log('ruleLabel:', perm.ruleLabel ?? '(none)')
+    const remember = process.env['SPIKE_ALWAYS'] ? 'always' : 'once'
+    console.log('remember:', remember)
+    c.session.replyPermission(perm.reqId, 'allow', remember)
   }
   await c.waitFor((e) => e.t === 'result')
   console.log(
-    `checks: tool_use=${c.events.some((e) => e.t === 'tool_use')} tool_result=${c.events.some((e) => e.t === 'tool_result')} thinking_delta=${c.events.some((e) => e.t === 'thinking_delta')}`
+    `checks: tool_use=${c.events.some((e) => e.t === 'tool_use')} tool_result=${c.events.some((e) => e.t === 'tool_result')} thinking_delta=${c.events.filter((e) => e.t === 'thinking_delta').length} thinking_blocks=${c.events.filter((e) => e.t === 'assistant_message' && e.blocks.some((b) => b.type === 'thinking')).length}`
   )
 
   console.log('\n=== TEST 5: interrupt ===')

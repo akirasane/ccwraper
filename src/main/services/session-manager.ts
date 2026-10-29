@@ -1,9 +1,20 @@
 import { randomUUID } from 'node:crypto'
+import { stat } from 'node:fs/promises'
 import type { SessionEvent } from '../../shared/events'
 import type { PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
 import { startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
 
 export const MAX_SESSIONS = 5
+
+export interface SessionManagerDeps {
+  /** Test seam; defaults to the real SDK adapter. */
+  startSession?: typeof startSdkSession
+}
+
+async function assertDirectory(cwd: string): Promise<void> {
+  const st = await stat(cwd).catch(() => undefined)
+  if (!st?.isDirectory()) throw new Error(`Working directory not found: ${cwd}`)
+}
 
 interface LiveSession {
   localId: string
@@ -13,16 +24,22 @@ interface LiveSession {
 
 export class SessionManager {
   private sessions = new Map<string, LiveSession>()
-  constructor(private emit: (localId: string, e: SessionEvent) => void) {}
+  constructor(
+    private emit: (localId: string, e: SessionEvent) => void,
+    private deps: SessionManagerDeps = {}
+  ) {}
 
   async start(args: SessionStartArgs): Promise<{ localId: string }> {
+    if (this.sessions.size >= MAX_SESSIONS) throw new Error(`Session cap reached (${MAX_SESSIONS})`)
+    // Checked here: the SDK's own spawn error for a bad cwd is misleading ("failed to launch ... libc").
+    await assertDirectory(args.cwd)
     if (this.sessions.size >= MAX_SESSIONS) throw new Error(`Session cap reached (${MAX_SESSIONS})`)
     const localId = randomUUID()
     const live = { localId } as LiveSession
     // Reserve slot before the async start so the cap holds under concurrent calls.
     this.sessions.set(localId, live)
     try {
-      live.adapter = await startSdkSession({
+      live.adapter = await (this.deps.startSession ?? startSdkSession)({
         cwd: args.cwd,
         prompt: args.prompt,
         ...(args.model ? { model: args.model } : {}),
@@ -53,8 +70,9 @@ export class SessionManager {
   send(localId: string, text: string): void {
     this.get(localId).adapter.send(text)
   }
-  interrupt(localId: string): Promise<void> {
-    return this.get(localId).adapter.interrupt()
+  async interrupt(localId: string): Promise<void> {
+    // Safe no-op for finished/unknown sessions.
+    await this.sessions.get(localId)?.adapter?.interrupt()
   }
   setModel(localId: string, model: string): Promise<void> {
     return this.get(localId).adapter.setModel(model)
@@ -63,7 +81,7 @@ export class SessionManager {
     return this.get(localId).adapter.setPermissionMode(mode)
   }
   permissionReply(a: PermissionReplyArgs): void {
-    this.get(a.localId).adapter.replyPermission(a.reqId, a.decision, a.updatedInput)
+    this.get(a.localId).adapter.replyPermission(a.reqId, a.decision, a.remember, a.updatedInput)
   }
   close(localId: string): void {
     const s = this.sessions.get(localId)
