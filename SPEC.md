@@ -131,9 +131,9 @@ Write rules: read-modify-write with atomic temp+rename, keep unknown keys untouc
 ## 8. Phases
 - **P0 spike (1-2 days):** electron-vite scaffold; sdk-adapter; send one prompt; stream text/thinking/tool events to a raw log view. Verify actual SDK option and message names, partial messages, canUseTool, resume, settingSources. Verify Windows `claude` binary resolution.
 - **P1 MVP:** design tokens + base components + `/design` page; chat UI (markdown, tool cards, diff, thinking collapse), permission dialog, project picker, session list + resume, interrupt, cost meter.
-- **P2:** settings editor (form + raw JSON + precedence view), MCP manager, `CLAUDE.md` editor.
+- **P2:** settings editor (form + raw JSON + precedence view), MCP manager, `CLAUDE.md` editor, embedded terminal (xterm.js + node-pty, themed).
 - **P3:** skills, commands, agents, hooks editors.
-- **P4:** usage dashboard, multi-tab, terminal, notifications, global hotkey, git panel, packaging/auto-update.
+- **P4:** usage dashboard, multi-tab, notifications, global hotkey, git panel, packaging/auto-update.
 
 ## 9. Risks
 | Risk | Mitigation |
@@ -189,7 +189,15 @@ Left rail: Projects/Sessions, Skills, MCP, Settings, Usage. Right inspector coll
 - Mock design in Figma or a quick HTML prototype before P1 UI build if desired.
 - Quality bar: 60fps during streaming, no layout shift, visible focus states, WCAG AA contrast on text.
 
+### 10.1 Embedded terminal design
+- Engine: xterm.js (WebGL renderer addon for speed) + node-pty (ConPTY on Windows). Addons: fit, search, web-links, unicode11, ligatures.
+- Theme: xterm theme mapped from design tokens (bg `bg-1`, transparent-friendly, accent cursor, curated 16-color ANSI palette tuned for dark, AA contrast). Geist Mono, 13px, ligatures on.
+- Chrome: docked bottom panel or right inspector tab, glass header with shell tabs (PowerShell / cmd / Git Bash / WSL auto-detected), "+" new tab, split, kill, clear, copy. Drag-resize with spring snap; open/close slide animation; Ctrl+` toggles.
+- Polish: soft cursor glow + smooth cursor blink, thin scrollbar, selection uses accent at 25%, subtle top fade when scrolled, search bar overlay (Ctrl+F) with animated match highlight.
+- Integration: "Run in terminal" button on Bash tool cards; click file paths/errors in output to open in the inspector/Monaco; per-project cwd; shell profile choice in settings.
+- Perf/safety: output batched per frame, scrollback cap (default 10k lines), pty killed on tab close/app quit, no env secrets echoed in UI logs.
+
 ## 11. Decisions
 1. App name: **ccwraper**.
 2. Platform: Windows first, cross-platform later (keep all paths/shell logic in `paths.ts` / services so porting is cheap).
-3. Embedded terminal: pending (default P4).
+3. Embedded terminal: IN SCOPE, must match the premium design (see 10.1). Built in P2.
