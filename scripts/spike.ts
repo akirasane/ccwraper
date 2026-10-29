@@ -118,10 +118,31 @@ async function main(): Promise<void> {
 
   }
 
+  // 6 (run early when SPIKE_THINKING_ONLY=1). Adaptive thinking: do thinking_delta events arrive, and/or final thinking blocks?
+  if (process.env['SPIKE_THINKING'] && process.env['SPIKE_THINKING_ONLY']) {
+    console.log('=== TEST 6: thinking ===')
+    const t = await start(
+      'T',
+      'Think step by step, then answer briefly: a train leaves at 3:15pm and the trip takes 2h50m; what time does it arrive, and what is 17*23? No tools.',
+      { settingSources: [], thinking: true, ...(process.env['SPIKE_MODEL'] ? { model: process.env['SPIKE_MODEL'] } : {}) }
+    )
+    await t.waitFor((e) => e.t === 'result')
+    const nd = t.events.filter((e) => e.t === 'thinking_delta').length
+    const nb = t.events.filter((e) => e.t === 'assistant_message' && e.blocks.some((b) => b.type === 'thinking')).length
+    console.log(`THINKING RESULT: thinking_delta=${nd} final_thinking_blocks=${nb}`)
+    t.session.close()
+    await t.session.done
+    console.log('SPIKE DONE')
+    return
+  }
+
   // 4. Interrupt mid-stream + permission flow (Bash tool should trigger canUseTool in default mode).
   console.log('\n=== TEST 4: permission + interrupt ===')
   // settingSources: [] => no user allow-rules/plugins, so Bash must go through canUseTool (and it is cheaper).
-  const c = await start('C', 'Use the Write tool to create a file named hello.txt in the current directory containing exactly: ccwrap-spike. Then reply done.', {
+  const prompt4 = process.env['SPIKE_BASH']
+    ? 'Use the Bash tool to run exactly: npm run ccwrap-spike-nonexistent. Then reply done.'
+    : 'Use the Write tool to create a file named hello.txt in the current directory containing exactly: ccwrap-spike. Then reply done.'
+  const c = await start('C', prompt4, {
     settingSources: [],
     ...(process.env['SPIKE_THINKING'] ? { thinking: true } : {}),
     ...(process.env['SPIKE_MODEL'] ? { model: process.env['SPIKE_MODEL'] } : {})

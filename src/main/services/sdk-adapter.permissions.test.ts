@@ -148,6 +148,25 @@ describe('permission flow', () => {
     s.close()
   })
 
+  it('always forwards only addRules suggestions (never setMode)', async () => {
+    const { fake, s, events } = await setup()
+    const mixed: PermissionUpdate[] = [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }, ...sugg]
+    const p = fake.callTool('Write', { file_path: 'a' }, mixed)
+    s.replyPermission(requestId(events), 'allow', 'always')
+    const r = await p
+    expect(r).toMatchObject({ updatedPermissions: [{ type: 'addRules', destination: 'localSettings' }] })
+    expect((r as { updatedPermissions: unknown[] }).updatedPermissions).toHaveLength(1)
+    s.close()
+  })
+
+  it('setMode-only suggestions yield no updatedPermissions', async () => {
+    const { fake, s, events } = await setup()
+    const p = fake.callTool('Write', { file_path: 'a' }, [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }])
+    s.replyPermission(requestId(events), 'allow', 'always')
+    expect('updatedPermissions' in (await p)).toBe(false)
+    s.close()
+  })
+
   it('deny', async () => {
     const { fake, s, events } = await setup()
     const p = fake.callTool('Bash', { command: 'x' }, sugg)

@@ -136,8 +136,11 @@ export function buildPermissionResult(
 ): PermissionResult {
   if (decision === 'deny') return { behavior: 'deny', message: 'Denied by user' }
   const dest = remember === 'always' ? 'localSettings' : remember === 'session' ? 'session' : undefined
+  // Only persist rules. Other suggestions (e.g. setMode acceptEdits for Write/Edit) would silently change the
+  // user's default mode, which "Always allow <rule>" must not do.
+  const rules = suggestions?.filter((s) => s.type === 'addRules')
   const updatedPermissions =
-    dest && suggestions?.length ? suggestions.map((s) => ({ ...s, destination: dest }) as PermissionUpdate) : undefined
+    dest && rules?.length ? rules.map((s) => ({ ...s, destination: dest }) as PermissionUpdate) : undefined
   return {
     behavior: 'allow',
     ...(updatedInput ? { updatedInput } : {}),
