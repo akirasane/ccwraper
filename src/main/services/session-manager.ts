@@ -42,6 +42,8 @@ export class SessionManager {
       live.adapter = await (this.deps.startSession ?? startSdkSession)({
         cwd: args.cwd,
         prompt: args.prompt,
+        // Summarized adaptive thinking: without it the CLI returns thinking blocks with empty text.
+        thinking: true,
         ...(args.model ? { model: args.model } : {}),
         ...(args.permissionMode ? { permissionMode: args.permissionMode } : {}),
         ...(args.resumeId ? { resumeId: args.resumeId } : {}),

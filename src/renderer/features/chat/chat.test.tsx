@@ -121,9 +121,25 @@ describe('ThinkingBlock', () => {
     render(<ThinkingBlock text="t" startedAt={1000} endedAt={4000} />)
     expect(screen.getByText('Thought for 3s')).toBeInTheDocument()
   })
+  it('empty thinking text is a plain label, not an expandable control', () => {
+    render(<ThinkingBlock text="" />)
+    expect(screen.getByText('Thought')).toBeInTheDocument()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
   it('shimmers while active', () => {
     render(<ThinkingBlock text="t" active />)
     expect(screen.getByText('Thinking')).toHaveClass('ccw-shimmer')
+  })
+})
+
+describe('Working indicator', () => {
+  it('shows while running with nothing streaming, hides once text streams', async () => {
+    seed([])
+    useChatStore.getState().applyEvent('L1', { t: 'status', state: 'running' })
+    render(<ChatView target={target} />)
+    expect(screen.getByTestId('working-indicator')).toBeInTheDocument()
+    act(() => useChatStore.getState().applyEvent('L1', { t: 'text_delta', msgId: 'm', text: 'hi' }))
+    await waitFor(() => expect(screen.queryByTestId('working-indicator')).toBeNull())
   })
 })
 

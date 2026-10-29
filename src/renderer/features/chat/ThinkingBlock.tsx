@@ -27,6 +27,14 @@ export function ThinkingBlock({ text, active = false, startedAt, endedAt }: Thin
     setOpen((o) => !o)
     setEverOpened(true)
   }
+  // The CLI can return thinking blocks with no text (omitted display): nothing to expand, so show a plain label.
+  if (!text && !active) {
+    return (
+      <div data-testid="thinking-block" className="text-sm">
+        <span className="inline-flex h-6 items-center px-1 text-fg-3">{label(active, startedAt, endedAt)}</span>
+      </div>
+    )
+  }
   return (
     <div data-testid="thinking-block" className="text-sm">
       <button

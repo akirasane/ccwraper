@@ -55,6 +55,17 @@ describe('SessionManager', () => {
     }
   })
 
+  it('requests summarized thinking so thinking blocks carry text', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ccwrap-'))
+    try {
+      const startSession = vi.fn(async () => fakeAdapter())
+      await new SessionManager(() => {}, { startSession }).start({ cwd: dir, prompt: 'hi' })
+      expect(startSession).toHaveBeenCalledWith(expect.objectContaining({ thinking: true }))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('interrupt on an unknown session is a safe no-op', async () => {
     const m = new SessionManager(() => {})
     await expect(m.interrupt('nope')).resolves.toBeUndefined()
