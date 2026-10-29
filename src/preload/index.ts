@@ -17,7 +17,13 @@ const api: CcwrapApi = {
       return () => ipcRenderer.removeListener(IpcChannels.sessionEvent, h)
     }
   },
-  dialog: { pickDirectory: () => ipcRenderer.invoke(IpcChannels.pickDirectory) }
+  dialog: { pickDirectory: () => ipcRenderer.invoke(IpcChannels.pickDirectory) },
+  history: {
+    listProjects: () => ipcRenderer.invoke(IpcChannels.historyListProjects),
+    list: (args) => ipcRenderer.invoke(IpcChannels.historyList, args),
+    load: (args) => ipcRenderer.invoke(IpcChannels.historyLoad, args)
+  },
+  app: { info: () => ipcRenderer.invoke(IpcChannels.appInfo) }
 }
 
 contextBridge.exposeInMainWorld('ccwrap', api)

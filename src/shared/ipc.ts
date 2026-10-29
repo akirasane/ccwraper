@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { SessionEvent } from './events'
+import type { AppInfo, HistorySessionInfo, ProjectInfo, SessionEvent } from './events'
 
 export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk', 'auto'])
 export type PermissionMode = z.infer<typeof PermissionModeSchema>
@@ -26,6 +26,12 @@ export const PermissionReplySchema = z.object({
 })
 export type PermissionReplyArgs = z.infer<typeof PermissionReplySchema>
 
+export const HistoryListSchema = z.object({ cwd: z.string().min(1) })
+export type HistoryListArgs = z.infer<typeof HistoryListSchema>
+
+export const HistoryLoadSchema = z.object({ sessionId: z.string().min(1), cwd: z.string().optional() })
+export type HistoryLoadArgs = z.infer<typeof HistoryLoadSchema>
+
 export { IpcChannels } from './channels'
 
 export interface SessionEventPayload {
@@ -46,4 +52,11 @@ export interface CcwrapApi {
     onEvent(cb: (p: SessionEventPayload) => void): () => void
   }
   dialog: { pickDirectory(): Promise<string | null> }
+  history: {
+    listProjects(): Promise<ProjectInfo[]>
+    list(args: HistoryListArgs): Promise<HistorySessionInfo[]>
+    /** Replayable events (user_message, assistant_message, tool_use, tool_result...) for a past session. */
+    load(args: HistoryLoadArgs): Promise<SessionEvent[]>
+  }
+  app: { info(): Promise<AppInfo> }
 }
