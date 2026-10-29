@@ -1,0 +1,60 @@
+[
+  {
+    "t": "status",
+    "state": "running"
+  },
+  {
+    "t": "init",
+    "sessionId": "s1",
+    "model": "claude-sonnet-5-5",
+    "tools": [
+      "Tool0",
+      "Tool1",
+      "Tool2"
+    ],
+    "mcp": [
+      {
+        "name": "fs",
+        "status": "connected"
+      }
+    ],
+    "slashCommands": [
+      "/help",
+      "/clear"
+    ],
+    "cwd": "C:\\fixture\\proj",
+    "permissionMode": "default"
+  },
+  {
+    "t": "text_delta",
+    "msgId": "m6",
+    "text": "Working on"
+  },
+  {
+    "t": "tool_use",
+    "toolUseId": "tu3",
+    "name": "Bash",
+    "input": {
+      "command": "sleep 100"
+    }
+  },
+  {
+    "t": "status",
+    "state": "idle"
+  },
+  {
+    "t": "result",
+    "costUsd": 0.005,
+    "durationMs": 1200,
+    "turns": 1,
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 20,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0
+    },
+    "isError": true,
+    "contextWindow": 200000,
+    "resultText": "interrupted"
+  }
+]

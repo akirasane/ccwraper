@@ -1,0 +1,80 @@
+[
+  {
+    "t": "status",
+    "state": "running"
+  },
+  {
+    "t": "init",
+    "sessionId": "s1",
+    "model": "claude-sonnet-5-5",
+    "tools": [
+      "Tool0",
+      "Tool1",
+      "Tool2"
+    ],
+    "mcp": [
+      {
+        "name": "fs",
+        "status": "connected"
+      }
+    ],
+    "slashCommands": [
+      "/help",
+      "/clear"
+    ],
+    "cwd": "C:\\fixture\\proj",
+    "permissionMode": "default"
+  },
+  {
+    "t": "thinking_delta",
+    "msgId": "m1",
+    "text": "Let me "
+  },
+  {
+    "t": "thinking_delta",
+    "msgId": "m1",
+    "text": "think."
+  },
+  {
+    "t": "text_delta",
+    "msgId": "m1",
+    "text": "Hello"
+  },
+  {
+    "t": "text_delta",
+    "msgId": "m1",
+    "text": ", world."
+  },
+  {
+    "t": "assistant_message",
+    "msgId": "m1",
+    "blocks": [
+      {
+        "type": "thinking",
+        "text": "Let me think."
+      },
+      {
+        "type": "text",
+        "text": "Hello, world."
+      }
+    ]
+  },
+  {
+    "t": "result",
+    "costUsd": 0.01,
+    "durationMs": 1200,
+    "turns": 1,
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 20,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0
+    },
+    "isError": false,
+    "contextWindow": 200000
+  },
+  {
+    "t": "status",
+    "state": "idle"
+  }
+]

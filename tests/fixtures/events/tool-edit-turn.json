@@ -1,0 +1,102 @@
+[
+  {
+    "t": "status",
+    "state": "running"
+  },
+  {
+    "t": "init",
+    "sessionId": "s1",
+    "model": "claude-sonnet-5-5",
+    "tools": [
+      "Tool0",
+      "Tool1",
+      "Tool2"
+    ],
+    "mcp": [
+      {
+        "name": "fs",
+        "status": "connected"
+      }
+    ],
+    "slashCommands": [
+      "/help",
+      "/clear"
+    ],
+    "cwd": "C:\\fixture\\proj",
+    "permissionMode": "default"
+  },
+  {
+    "t": "text_delta",
+    "msgId": "m2",
+    "text": "Editing."
+  },
+  {
+    "t": "assistant_message",
+    "msgId": "m2",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "Editing."
+      },
+      {
+        "type": "tool_use",
+        "toolUseId": "tu1",
+        "name": "Edit",
+        "input": {
+          "file_path": "C:\fixtureproja.ts",
+          "old_string": "const a = 1",
+          "new_string": "const a = 2"
+        }
+      }
+    ]
+  },
+  {
+    "t": "tool_use",
+    "toolUseId": "tu1",
+    "name": "Edit",
+    "input": {
+      "file_path": "C:\fixtureproja.ts",
+      "old_string": "const a = 1",
+      "new_string": "const a = 2"
+    }
+  },
+  {
+    "t": "tool_result",
+    "toolUseId": "tu1",
+    "content": "File edited",
+    "isError": false
+  },
+  {
+    "t": "text_delta",
+    "msgId": "m3",
+    "text": "Done."
+  },
+  {
+    "t": "assistant_message",
+    "msgId": "m3",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "Done."
+      }
+    ]
+  },
+  {
+    "t": "result",
+    "costUsd": 0.02,
+    "durationMs": 1200,
+    "turns": 1,
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 20,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0
+    },
+    "isError": false,
+    "contextWindow": 200000
+  },
+  {
+    "t": "status",
+    "state": "idle"
+  }
+]

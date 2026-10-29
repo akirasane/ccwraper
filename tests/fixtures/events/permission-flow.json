@@ -1,0 +1,105 @@
+[
+  {
+    "t": "status",
+    "state": "running"
+  },
+  {
+    "t": "init",
+    "sessionId": "s1",
+    "model": "claude-sonnet-5-5",
+    "tools": [
+      "Tool0",
+      "Tool1",
+      "Tool2"
+    ],
+    "mcp": [
+      {
+        "name": "fs",
+        "status": "connected"
+      }
+    ],
+    "slashCommands": [
+      "/help",
+      "/clear"
+    ],
+    "cwd": "C:\\fixture\\proj",
+    "permissionMode": "default"
+  },
+  {
+    "t": "assistant_message",
+    "msgId": "m4",
+    "blocks": [
+      {
+        "type": "tool_use",
+        "toolUseId": "tu2",
+        "name": "Write",
+        "input": {
+          "file_path": "C:\fixtureproj\b.txt",
+          "content": "hi"
+        }
+      }
+    ]
+  },
+  {
+    "t": "tool_use",
+    "toolUseId": "tu2",
+    "name": "Write",
+    "input": {
+      "file_path": "C:\fixtureproj\b.txt",
+      "content": "hi"
+    }
+  },
+  {
+    "t": "status",
+    "state": "waiting_permission"
+  },
+  {
+    "t": "permission_request",
+    "reqId": "r1",
+    "toolName": "Write",
+    "input": {
+      "file_path": "C:\fixtureproj\b.txt",
+      "content": "hi"
+    },
+    "title": "Write b.txt",
+    "ruleLabel": "Write"
+  },
+  {
+    "t": "status",
+    "state": "running"
+  },
+  {
+    "t": "tool_result",
+    "toolUseId": "tu2",
+    "content": "File created",
+    "isError": false
+  },
+  {
+    "t": "assistant_message",
+    "msgId": "m5",
+    "blocks": [
+      {
+        "type": "text",
+        "text": "Created."
+      }
+    ]
+  },
+  {
+    "t": "result",
+    "costUsd": 0.03,
+    "durationMs": 1200,
+    "turns": 1,
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 20,
+      "cacheReadTokens": 0,
+      "cacheCreationTokens": 0
+    },
+    "isError": false,
+    "contextWindow": 200000
+  },
+  {
+    "t": "status",
+    "state": "idle"
+  }
+]
