@@ -1,16 +1,15 @@
 import { ipcMain } from 'electron'
 import { HistoryListSchema, HistoryLoadSchema, IpcChannels } from '../../shared/ipc'
 import type { HistorySessionInfo, ProjectInfo, SessionEvent } from '../../shared/events'
+import { HistoryService } from '../services/history-service'
 
-/** STUB (WP0): returns empty results. WP2 replaces the bodies with the real HistoryService. */
-export function registerHistoryIpc(): void {
-  ipcMain.handle(IpcChannels.historyListProjects, async (): Promise<ProjectInfo[]> => [])
-  ipcMain.handle(IpcChannels.historyList, async (_e, raw: unknown): Promise<HistorySessionInfo[]> => {
-    HistoryListSchema.parse(raw)
-    return []
+export function registerHistoryIpc(service: HistoryService = new HistoryService()): void {
+  ipcMain.handle(IpcChannels.historyListProjects, (): Promise<ProjectInfo[]> => service.listProjects())
+  ipcMain.handle(IpcChannels.historyList, (_e, raw: unknown): Promise<HistorySessionInfo[]> => {
+    return service.list(HistoryListSchema.parse(raw).cwd)
   })
-  ipcMain.handle(IpcChannels.historyLoad, async (_e, raw: unknown): Promise<SessionEvent[]> => {
-    HistoryLoadSchema.parse(raw)
-    return []
+  ipcMain.handle(IpcChannels.historyLoad, (_e, raw: unknown): Promise<SessionEvent[]> => {
+    const a = HistoryLoadSchema.parse(raw)
+    return service.load(a.sessionId, a.cwd)
   })
 }

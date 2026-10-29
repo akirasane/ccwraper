@@ -1,0 +1,7 @@
+[
+  { "sessionId": "s-a1", "summary": "Summary A1", "lastModified": 1000, "cwd": "C:\\fixture\\proj", "firstPrompt": "first a1", "gitBranch": "main", "createdAt": 900, "fileSize": 10 },
+  { "sessionId": "s-a2", "summary": "Auto summary", "customTitle": "Renamed A2", "lastModified": 3000, "cwd": "c:\\fixture\\proj", "firstPrompt": "first a2" },
+  { "sessionId": "s-b1", "summary": "", "lastModified": 2000, "cwd": "C:\\fixture\\other\\", "firstPrompt": "only the first prompt" },
+  { "sessionId": "s-gone", "summary": "Gone", "lastModified": 500, "cwd": "C:\\fixture\\missing" },
+  { "sessionId": "s-nocwd", "summary": "No cwd", "lastModified": 400 }
+]
