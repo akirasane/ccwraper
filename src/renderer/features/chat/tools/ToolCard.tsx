@@ -116,7 +116,8 @@ function Meta({ tool }: { tool: ToolCallView }): React.JSX.Element | null {
     const n = resultLineCount(tool.result)
     return <span className="shrink-0 text-xs text-fg-3 tabular-nums">{n} {n === 1 ? 'match' : 'matches'}</span>
   }
-  if (tool.status === 'done' && tool.startedAt !== undefined && tool.endedAt !== undefined) {
+  // History replay seeds start and end at the same instant: no real duration to show.
+  if (tool.status === 'done' && tool.startedAt !== undefined && tool.endedAt !== undefined && tool.endedAt > tool.startedAt) {
     return <span className="shrink-0 text-xs text-fg-3 tabular-nums">{formatDuration(tool.endedAt - tool.startedAt)}</span>
   }
   return null

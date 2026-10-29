@@ -1,6 +1,7 @@
 import { Square } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { selectIsRunning } from '@/features/chat/model/selectors'
+import { useSessions } from '@/features/sessions/queries'
 import { useChatStore } from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 
@@ -14,6 +15,10 @@ export function TitleBar(): React.JSX.Element {
   const conv = useChatStore((s) => (convId ? s.convs[convId] : undefined))
   const interrupt = useChatStore((s) => s.interrupt)
   const running = conv ? selectIsRunning(conv) : false
+  // A live session started in this app gets its title from the history list once the SDK has written it.
+  const { data: sessions } = useSessions(conv?.cwd)
+  const sessionId = conv?.meta.sessionId ?? conv?.resumeSessionId
+  const listed = sessionId ? sessions?.find((x) => x.sessionId === sessionId)?.title : undefined
 
   return (
     <header
@@ -25,7 +30,7 @@ export function TitleBar(): React.JSX.Element {
       {convId && (
         <div className="relative flex h-full max-w-[320px] items-center px-3 text-base text-fg" style={noDrag}>
           <span className="truncate" data-testid="tab-title">
-            {title ?? 'New session'}
+            {title ?? listed ?? 'New session'}
           </span>
           <span
             aria-hidden
