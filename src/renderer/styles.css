@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+:root {
+  --bg-0: #0a0a0c;
+  --bg-1: #101014;
+  --bg-2: #16161b;
+  --bg-3: #1d1d24;
+  --text: #ececf1;
+  --text-2: #9a9aa8;
+  --text-3: #62626f;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg-0);
+  color: var(--text);
+  font-size: 13px;
+  font-family: system-ui, sans-serif;
+}

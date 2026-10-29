@@ -1,0 +1,80 @@
+import { randomUUID } from 'node:crypto'
+import type { SessionEvent } from '../../shared/events'
+import type { PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
+import { startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
+
+export const MAX_SESSIONS = 5
+
+interface LiveSession {
+  localId: string
+  adapter: AdapterSession
+  sdkSessionId?: string
+}
+
+export class SessionManager {
+  private sessions = new Map<string, LiveSession>()
+  constructor(private emit: (localId: string, e: SessionEvent) => void) {}
+
+  async start(args: SessionStartArgs): Promise<{ localId: string }> {
+    if (this.sessions.size >= MAX_SESSIONS) throw new Error(`Session cap reached (${MAX_SESSIONS})`)
+    const localId = randomUUID()
+    const live = { localId } as LiveSession
+    // Reserve slot before the async start so the cap holds under concurrent calls.
+    this.sessions.set(localId, live)
+    try {
+      live.adapter = await startSdkSession({
+        cwd: args.cwd,
+        prompt: args.prompt,
+        ...(args.model ? { model: args.model } : {}),
+        ...(args.permissionMode ? { permissionMode: args.permissionMode } : {}),
+        ...(args.resumeId ? { resumeId: args.resumeId } : {}),
+        ...(args.fork ? { fork: args.fork } : {}),
+        onEvent: (e) => {
+          if (e.t === 'init') live.sdkSessionId = e.sessionId
+          this.emit(localId, e)
+        }
+      })
+    } catch (err) {
+      this.sessions.delete(localId)
+      throw err
+    }
+    void live.adapter.done.finally(() => {
+      this.sessions.delete(localId)
+    })
+    return { localId }
+  }
+
+  private get(localId: string): LiveSession {
+    const s = this.sessions.get(localId)
+    if (!s?.adapter) throw new Error(`Unknown or finished session ${localId}`)
+    return s
+  }
+
+  send(localId: string, text: string): void {
+    this.get(localId).adapter.send(text)
+  }
+  interrupt(localId: string): Promise<void> {
+    return this.get(localId).adapter.interrupt()
+  }
+  setModel(localId: string, model: string): Promise<void> {
+    return this.get(localId).adapter.setModel(model)
+  }
+  setPermissionMode(localId: string, mode: PermissionModeName): Promise<void> {
+    return this.get(localId).adapter.setPermissionMode(mode)
+  }
+  permissionReply(a: PermissionReplyArgs): void {
+    this.get(a.localId).adapter.replyPermission(a.reqId, a.decision, a.updatedInput)
+  }
+  close(localId: string): void {
+    const s = this.sessions.get(localId)
+    if (!s) return
+    s.adapter?.close()
+    this.sessions.delete(localId)
+  }
+  closeAll(): void {
+    for (const id of [...this.sessions.keys()]) this.close(id)
+  }
+  get size(): number {
+    return this.sessions.size
+  }
+}
