@@ -52,6 +52,16 @@ export const ccwrapEditorTheme = EditorView.theme(
     },
     '.cm-panel input.cm-textfield:focus-visible, .cm-panel button:focus-visible, .cm-panel input[type=checkbox]:focus-visible':
       { outline: '2px solid var(--accent-text)', outlineOffset: '1px' },
+    '.cm-panel.cm-search': { padding: '6px 8px', color: 'var(--text-secondary)' },
+    '.cm-panel.cm-search label': { color: 'var(--text-secondary)' },
+    '.cm-panel.cm-search input[type=checkbox]': { accentColor: 'var(--accent-text)' },
+    '.cm-panel.cm-search [name=close]': {
+      backgroundColor: 'transparent',
+      border: 'none',
+      color: 'var(--text-secondary)'
+    },
+    '.cm-panel.cm-search [name=close]:hover, .cm-panel button:hover': { backgroundColor: 'var(--bg-3)', color: 'var(--text-primary)' },
+    '.cm-panel input.cm-textfield::placeholder': { color: 'var(--text-tertiary)' },
     '.cm-panel button': {
       backgroundImage: 'none',
       backgroundColor: 'var(--bg-3)',

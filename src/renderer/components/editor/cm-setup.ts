@@ -1,6 +1,4 @@
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { json, jsonParseLinter } from '@codemirror/lang-json'
-import { markdown } from '@codemirror/lang-markdown'
 import { bracketMatching, indentOnInput } from '@codemirror/language'
 import { type Diagnostic, linter, lintGutter } from '@codemirror/lint'
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search'
@@ -25,26 +23,37 @@ export interface ExternalDiagnostic {
 }
 
 export const languageCompartment = new Compartment()
+export const parserCompartment = new Compartment()
 export const readOnlyCompartment = new Compartment()
 
+/**
+ * Synchronous part of a language: external diagnostics, gutter, wrapping. The parser
+ * (loadLanguage) arrives later so the base chunk stays free of lang-html / lang-js / lang-css.
+ */
 export function languageExtensions(
   language: EditorLanguage,
   getExternal: () => readonly ExternalDiagnostic[]
 ): Extension {
-  const merged = (view: EditorView): Diagnostic[] => {
+  const external = (view: EditorView): Diagnostic[] => {
     const len = view.state.doc.length
-    const ext: Diagnostic[] = getExternal().map((d) => {
+    return getExternal().map((d) => {
       const from = Math.max(0, Math.min(d.from, len))
       const to = Math.max(from, Math.min(d.to, len))
       return { from, to, message: d.message, severity: d.severity, source: 'ccwrap' }
     })
-    if (language !== 'json') return ext
-    return [...jsonParseLinter()(view), ...ext]
   }
-  const lint = [linter(merged, { delay: 250 }), lintGutter()]
-  return language === 'json'
-    ? [json(), lint]
-    : [markdown(), EditorView.lineWrapping, lint]
+  const lint = [linter(external, { delay: 250 }), lintGutter()]
+  return language === 'json' ? lint : [EditorView.lineWrapping, lint]
+}
+
+/** Loads the parser (and for JSON its parse linter) on demand, in its own chunk. */
+export async function loadLanguage(language: EditorLanguage): Promise<Extension> {
+  if (language === 'json') {
+    const m = await import('@codemirror/lang-json')
+    return [m.json(), linter(m.jsonParseLinter(), { delay: 250 })]
+  }
+  const m = await import('@codemirror/lang-markdown')
+  return m.markdown()
 }
 
 export function readOnlyExtensions(readOnly: boolean): Extension {

@@ -2,7 +2,15 @@ import { forceLinting } from '@codemirror/lint'
 import { Annotation, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { useEffect, useRef } from 'react'
-import { baseExtensions, languageCompartment, languageExtensions, readOnlyCompartment, readOnlyExtensions } from './cm-setup'
+import {
+  baseExtensions,
+  languageCompartment,
+  languageExtensions,
+  loadLanguage,
+  parserCompartment,
+  readOnlyCompartment,
+  readOnlyExtensions
+} from './cm-setup'
 import type { CodeEditorProps } from './CodeEditor'
 
 const external = Annotation.define<boolean>()
@@ -38,6 +46,7 @@ export default function CodeEditorImpl({
         extensions: [
           baseExtensions({ ariaLabel: init.ariaLabel, onSave: () => onSaveRef.current?.() }),
           languageCompartment.of(languageExtensions(init.language, () => diagRef.current)),
+          parserCompartment.of([]),
           readOnlyCompartment.of(readOnlyExtensions(init.readOnly)),
           EditorView.updateListener.of((u) => {
             if (u.docChanged && !u.transactions.some((tr) => tr.annotation(external))) {
@@ -70,8 +79,21 @@ export default function CodeEditorImpl({
 
   useEffect(() => {
     view.current?.dispatch({
-      effects: languageCompartment.reconfigure(languageExtensions(language, () => diagRef.current))
+      effects: [
+        languageCompartment.reconfigure(languageExtensions(language, () => diagRef.current)),
+        parserCompartment.reconfigure([])
+      ]
     })
+    let cancelled = false
+    void loadLanguage(language).then((ext) => {
+      const v = view.current
+      if (cancelled || !v) return
+      v.dispatch({ effects: parserCompartment.reconfigure(ext) })
+      forceLinting(v)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [language])
 
   useEffect(() => {
