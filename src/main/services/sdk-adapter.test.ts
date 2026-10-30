@@ -127,6 +127,35 @@ describe('mapMessage', () => {
   })
 })
 
+describe('result modelUsage mapping', () => {
+  it('maps every model to Usage & costUsd', () => {
+    const ev = mapMessage(
+      msg({
+        type: 'result',
+        subtype: 'success',
+        result: 'ok',
+        total_cost_usd: 0.3,
+        duration_ms: 1,
+        num_turns: 1,
+        is_error: false,
+        usage: {},
+        modelUsage: {
+          'model-a': { inputTokens: 1, outputTokens: 2, cacheReadInputTokens: 3, cacheCreationInputTokens: 4, costUSD: 0.1 },
+          'model-b': { inputTokens: 10, outputTokens: 20, cacheReadInputTokens: 30, cacheCreationInputTokens: 40, costUSD: 0.2 }
+        }
+      }),
+      { msgId: '' }
+    )
+    expect(ev[0]).toMatchObject({
+      t: 'result',
+      modelUsage: {
+        'model-a': { inputTokens: 1, outputTokens: 2, cacheReadTokens: 3, cacheCreationTokens: 4, costUsd: 0.1 },
+        'model-b': { inputTokens: 10, outputTokens: 20, cacheReadTokens: 30, cacheCreationTokens: 40, costUsd: 0.2 }
+      }
+    })
+  })
+})
+
 describe('normalizeCwdKey', () => {
   it('strips trailing separators and is case-insensitive on Windows', () => {
     const a = normalizeCwdKey('D:\\Dev\\Proj\\')

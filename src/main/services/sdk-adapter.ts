@@ -354,6 +354,25 @@ function sumModelUsage(modelUsage: unknown): (Usage & { costUsd: number; thinkin
   return thinking !== undefined ? { ...sum, thinkingTokens: thinking } : sum
 }
 
+/** Map result.modelUsage per model (cumulative for this query process). costUsd is the SDK's est. API value. */
+function mapModelUsage(modelUsage: unknown): Record<string, Usage & { costUsd: number }> | undefined {
+  if (!modelUsage || typeof modelUsage !== 'object') return undefined
+  const num = (o: Record<string, unknown>, k: string): number => (typeof o[k] === 'number' ? (o[k] as number) : 0)
+  const out: Record<string, Usage & { costUsd: number }> = {}
+  for (const [model, u] of Object.entries(modelUsage as Record<string, unknown>)) {
+    if (!u || typeof u !== 'object') continue
+    const r = u as Record<string, unknown>
+    out[model] = {
+      inputTokens: num(r, 'inputTokens'),
+      outputTokens: num(r, 'outputTokens'),
+      cacheReadTokens: num(r, 'cacheReadInputTokens'),
+      cacheCreationTokens: num(r, 'cacheCreationInputTokens'),
+      costUsd: num(r, 'costUSD')
+    }
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
 /** Translate one SDK message into zero or more normalized events. Exported for tests/spike. */
 /** `system/status requesting` on the main thread = a new API request is starting. */
 function isMainRequestStart(m: SDKMessage): boolean {
@@ -524,6 +543,7 @@ export function mapMessage(m: SDKMessage, state: MapState): SessionEvent[] {
     case 'result': {
       const contextWindow = pickContextWindow(m as { modelUsage?: unknown }, state.model)
       const sessionUsage = sumModelUsage((m as { modelUsage?: unknown }).modelUsage)
+      const modelUsage = mapModelUsage((m as { modelUsage?: unknown }).modelUsage)
       out.push({
         t: 'result',
         costUsd: m.total_cost_usd,
@@ -533,6 +553,7 @@ export function mapMessage(m: SDKMessage, state: MapState): SessionEvent[] {
         isError: m.is_error,
         ...(typeof m.duration_api_ms === 'number' ? { durationApiMs: m.duration_api_ms } : {}),
         ...(sessionUsage ? { sessionUsage } : {}),
+        ...(modelUsage ? { modelUsage } : {}),
         ...(contextWindow ? { contextWindow } : {}),
         ...(m.subtype === 'success' ? { resultText: m.result } : {})
       })
