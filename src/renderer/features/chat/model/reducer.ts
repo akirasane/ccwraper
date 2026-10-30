@@ -12,6 +12,8 @@ export function createConvState(target: ChatTarget): ConvState {
     pending: [],
     meta: { tools: [], mcp: [], slashCommands: [] },
     status: 'idle',
+    tasks: {},
+    session: { workMs: 0, apiMs: 0, turns: 0 },
     seq: 0
   }
 }
@@ -281,6 +283,14 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
         items: [...conv.items, { kind: 'error', id: `i${seq}`, message: e.message }]
       }
     }
+    // P3 live-activity events: WP2 implements these (usage, tasks, tool progress). No-ops until then.
+    case 'usage_live':
+    case 'task_started':
+    case 'task_progress':
+    case 'task_updated':
+    case 'task_ended':
+    case 'tool_progress':
+      return conv
   }
 }
 

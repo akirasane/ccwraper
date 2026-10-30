@@ -22,4 +22,12 @@ describe('config-queries keys', () => {
     ])
     expect(keysForChange({ kind: 'settings', path: 'p' })).toEqual([['config'], ['settings-resolve'], ['mcp']])
   })
+
+  it('covers item refs and keys (P3)', () => {
+    expect(refKey({ kind: 'skill', scope: 'user', name: 'a' })).toBe('skill:user::a')
+    expect(refKey({ kind: 'command', scope: 'project', cwd: 'C:\\P\\', name: 'a/b' })).toBe('command:project:c:/p:a/b')
+    expect(refKey({ kind: 'agent', scope: 'plugin', plugin: 'pl', name: 'r' })).toBe('agent:plugin:pl:r')
+    expect(configKeys.items('skill', 'C:\\P\\')).toEqual(['items', 'skill', 'c:/p'])
+    expect(keysForChange({ kind: 'agent', scope: 'project', cwd: 'C:\\p', path: 'p' })).toEqual([['items', 'agent'], ['config']])
+  })
 })

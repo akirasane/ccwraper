@@ -26,8 +26,8 @@ function writeLastCwd(cwd: string): void {
   }
 }
 
-/** Main-column view. 'chat' is the default; the others are the P2 config pages. */
-export type AppView = 'chat' | 'settings' | 'mcp' | 'memory'
+/** Main-column view. 'chat' is the default; the others are the config pages (P2) and the item / hook editors (P3). */
+export type AppView = 'chat' | 'settings' | 'mcp' | 'memory' | 'skills' | 'agents' | 'hooks'
 
 interface WorkspaceState {
   view: AppView

@@ -43,16 +43,19 @@ beforeEach(() => {
 })
 
 describe('AppShell navigation skeleton', () => {
-  it('shows Sessions / MCP / Memory and Settings nav rows', () => {
+  it('shows the nav rows and Settings', () => {
     render(<AppShell />)
     const nav = screen.getByRole('navigation', { name: 'Main' })
-    for (const n of ['Sessions', 'MCP', 'Memory']) expect(within(nav).getByRole('button', { name: n })).toBeInTheDocument()
+    for (const n of ['Sessions', 'MCP', 'Memory', 'Skills', 'Agents', 'Hooks']) expect(within(nav).getByRole('button', { name: n })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
   })
 
   it.each([
     ['MCP', 'mcp-page'],
     ['Memory', 'memory-page'],
+    ['Skills', 'skills-page'],
+    ['Agents', 'agents-page'],
+    ['Hooks', 'hooks-page'],
     ['Settings', 'settings-page']
   ])('%s renders its placeholder page with the cwd, and Sessions returns to chat', async (label, testId) => {
     const user = userEvent.setup()

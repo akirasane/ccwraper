@@ -19,6 +19,9 @@ import { TitleBar } from './TitleBar'
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const McpPage = lazy(() => import('@/features/mcp/McpPage').then((m) => ({ default: m.McpPage })))
 const MemoryPage = lazy(() => import('@/features/memory/MemoryPage').then((m) => ({ default: m.MemoryPage })))
+const SkillsPage = lazy(() => import('@/features/items/SkillsPage').then((m) => ({ default: m.SkillsPage })))
+const AgentsPage = lazy(() => import('@/features/items/AgentsPage').then((m) => ({ default: m.AgentsPage })))
+const HooksPage = lazy(() => import('@/features/hooks/HooksPage').then((m) => ({ default: m.HooksPage })))
 const TerminalPanel = lazy(() =>
   import('@/features/terminal/TerminalPanel').then((m) => ({ default: m.TerminalPanel }))
 )
@@ -138,6 +141,9 @@ function Shell(): React.JSX.Element {
                 {view === 'settings' && <SettingsPage cwd={cwd} />}
                 {view === 'mcp' && <McpPage cwd={cwd} />}
                 {view === 'memory' && <MemoryPage cwd={cwd} />}
+                {view === 'skills' && <SkillsPage cwd={cwd} />}
+                {view === 'agents' && <AgentsPage cwd={cwd} />}
+                {view === 'hooks' && <HooksPage cwd={cwd} />}
               </Suspense>
             )}
             {/* Chat stays mounted (hidden) while another view is open so composer drafts and scroll survive. */}
