@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto'
-import { copyFile, mkdir, readFile, readdir, stat, unlink } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { copyFile, lstat, mkdir, readFile, readdir, stat, unlink } from 'node:fs/promises'
+import { basename, join, relative, resolve } from 'node:path'
 import type { ConfigFileRef, ConfigSnapshot, ConfigWriteResult } from '../../shared/config'
-import { normalizeCwdKey } from '../paths'
-import type { ConfigPaths } from '../paths'
+import { parseFrontmatter } from '../../shared/frontmatter'
+import { itemFilePath, normalizeCwdKey } from '../paths'
+import type { ConfigPaths, ItemKindName } from '../paths'
+import type { PluginRegistry } from './plugin-registry'
 import { writeFileAtomic } from './atomic-write'
 import type { AtomicFs } from './atomic-write'
 
@@ -25,11 +27,47 @@ export interface ConfigServiceOptions {
   fs?: AtomicFs
   sleep?: (ms: number) => Promise<void>
   now?: () => number
+  /** Plugin dirs reported by session init; needed to resolve plugin item refs. */
+  registry?: PluginRegistry
+}
+
+/** Existing item files are accepted with this segment rule (new names are stricter, see items-service). */
+const REF_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
+const ITEM_DIR_NAME: Record<ItemKindName, string> = { skill: 'skills', command: 'commands', agent: 'agents' }
+/** How long a null-hash (removal / directory) event stays "ours". The watcher debounces at 150 ms. */
+const OWN_TOUCH_TTL_MS = 5000
+
+/** Throws unless `name` is a valid existing-item name for `kind` (1 segment, commands 1-3). */
+export function assertRefName(kind: ItemKindName, name: string): void {
+  const segs = name.split('/')
+  const max = kind === 'command' ? 3 : 1
+  if (segs.length < 1 || segs.length > max || segs.some((s) => !REF_SEGMENT.test(s))) throw new Error(`Invalid item name: ${name}`)
+}
+
+/**
+ * Throws when any existing component of `file` below `root` is a symlink (so a link inside the tree can never
+ * redirect a read or write outside it). The root itself may be a link the user set up. Missing components end the walk.
+ */
+export async function assertNoSymlinkEscape(root: string, file: string): Promise<void> {
+  const rel = relative(resolve(root), resolve(file))
+  if (!rel || rel.startsWith('..')) throw new Error('Item path escapes its root')
+  let cur = resolve(root)
+  for (const seg of rel.split(/[\\/]/)) {
+    cur = join(cur, seg)
+    try {
+      if ((await lstat(cur)).isSymbolicLink()) throw new Error(`Refusing to follow a symlink: ${cur}`)
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (code === 'ENOENT' || code === 'ENOTDIR') return
+      throw err
+    }
+  }
 }
 
 export class ConfigService {
   private readonly backedUp = new Set<string>()
   private readonly ownWrites = new Map<string, string>()
+  private readonly ownTouched = new Map<string, number>()
 
   constructor(
     private readonly paths: ConfigPaths,
@@ -39,22 +77,47 @@ export class ConfigService {
 
   /** Resolve a typed ref to a path. Throws on a missing cwd (callers map that to bad_ref). */
   resolvePath(ref: ConfigFileRef): string {
-    // WP0 stub: item refs (skill / command / agent) are resolved by WP4. Write() maps this throw to bad_ref.
-    if (ref.kind !== 'settings' && ref.kind !== 'memory') throw new Error('Item refs are not supported yet')
-    return ref.kind === 'settings' ? this.paths.settingsFile(ref.scope, ref.cwd) : this.paths.memoryFile(ref.scope, ref.cwd)
+    if (ref.kind === 'settings') return this.paths.settingsFile(ref.scope, ref.cwd)
+    if (ref.kind === 'memory') return this.paths.memoryFile(ref.scope, ref.cwd)
+    return this.resolveItem(ref).path
   }
 
-  /** True when `hash` is the content we last wrote to `path` (watcher uses this to drop our own events). */
+  /** Root folder + file of an item ref (user / project via paths, plugin via the registry). Throws on a bad ref. */
+  resolveItem(ref: Extract<ConfigFileRef, { kind: 'skill' | 'command' | 'agent' }>): { root: string; path: string } {
+    assertRefName(ref.kind, ref.name)
+    let root: string
+    if (ref.scope === 'plugin') {
+      const plugin = this.opts.registry?.get(ref.plugin)
+      if (!plugin) throw new Error(`Unknown plugin: ${ref.plugin}`)
+      root = join(plugin.path, ITEM_DIR_NAME[ref.kind])
+    } else {
+      root = this.paths.itemsRoot(ref.kind, ref.scope, ref.cwd)
+    }
+    return { root, path: itemFilePath(ref.kind, root, ref.name) }
+  }
+
+  /** True when `hash` is the content we last wrote to `path`, or (null hash) the path was touched by us recently. */
   isOwnWrite(path: string, hash: string | null): boolean {
-    return hash !== null && this.ownWrites.get(fileKey(path)) === hash
+    if (hash === null) {
+      const until = this.ownTouched.get(fileKey(path))
+      return until !== undefined && until > (this.opts.now ?? Date.now)()
+    }
+    return this.ownWrites.get(fileKey(path)) === hash
   }
 
   clearOwnWrite(path: string): void {
     this.ownWrites.delete(fileKey(path))
+    this.ownTouched.delete(fileKey(path))
+  }
+
+  /** Register a removal / directory change we made ourselves (no content hash), so the watcher stays quiet. */
+  markOwnPath(path: string): void {
+    this.ownTouched.set(fileKey(path), (this.opts.now ?? Date.now)() + OWN_TOUCH_TTL_MS)
   }
 
   async read(ref: ConfigFileRef): Promise<ConfigSnapshot> {
     const path = this.resolvePath(ref)
+    if (ref.kind !== 'settings' && ref.kind !== 'memory') await assertNoSymlinkEscape(this.resolveItem(ref).root, path)
     return this.snapshot(ref, path)
   }
 
@@ -92,6 +155,13 @@ export class ConfigService {
     }
     try {
       let body = stripBom(text)
+      const isItem = ref.kind !== 'settings' && ref.kind !== 'memory'
+      if (isItem) {
+        if (ref.scope === 'plugin') return { ok: false, code: 'read_only', message: 'Plugin items are read-only' }
+        await assertNoSymlinkEscape(this.resolveItem(ref).root, path)
+        const fm = parseFrontmatter(body)
+        if (fm.error) return { ok: false, code: 'invalid_frontmatter', message: fm.error.message }
+      }
       if (ref.kind === 'settings') {
         let parsed: unknown
         try {
@@ -107,7 +177,7 @@ export class ConfigService {
       if (current.hash !== baseHash)
         return { ok: false, code: 'conflict', message: 'The file changed on disk since it was read', current }
 
-      if (ref.kind === 'memory' && current.exists) {
+      if ((ref.kind === 'memory' || isItem) && current.exists) {
         const eol = /\r\n/.test(current.text) ? '\r\n' : /\n/.test(current.text) ? '\n' : undefined
         if (eol) body = body.replace(/\r\n/g, '\n').replace(/\n/g, eol)
       }
