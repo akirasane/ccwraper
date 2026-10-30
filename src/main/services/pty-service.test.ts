@@ -38,6 +38,7 @@ function make(extra: Partial<ConstructorParameters<typeof PtyService>[0]> = {}) 
   const spawned: Array<{ file: string; args: string[]; opts: SpawnOptions }> = []
   const data: Array<[number, PtyDataPayload]> = []
   const exits: Array<[number, PtyExitPayload]> = []
+  const treeKilled: number[] = []
   const svc = new PtyService({
     spawn: (file, args, opts) => {
       const p = new FakePty()
@@ -50,9 +51,10 @@ function make(extra: Partial<ConstructorParameters<typeof PtyService>[0]> = {}) 
     env: { PATH: 'x', ELECTRON_RUN_AS_NODE: '1', ELECTRON_RENDERER_URL: 'u', SECRET: 's' },
     emitData: (o, p) => data.push([o, p]),
     emitExit: (o, p) => exits.push([o, p]),
+    killTree: (pid) => treeKilled.push(pid),
     ...extra
   })
-  return { svc, ptys, spawned, data, exits }
+  return { svc, ptys, spawned, data, exits, treeKilled }
 }
 
 describe('PtyService (fake pty)', () => {
@@ -148,6 +150,17 @@ describe('PtyService (fake pty)', () => {
     expect(data).toHaveLength(0)
     expect(exits).toHaveLength(0)
     expect(svc.size).toBe(0)
+  })
+
+  it('close kills the whole process tree of a live shell, not of an exited one', () => {
+    const { svc, ptys, treeKilled } = make()
+    const a = svc.open('gitbash', 'C:\p', 80, 24, 1)
+    svc.close(a.ptyId, 1)
+    expect(treeKilled).toEqual([ptys[0]!.pid])
+    const b = svc.open('pwsh', 'C:\p', 80, 24, 1)
+    ptys[1]!.exitCb({ exitCode: 0 })
+    svc.close(b.ptyId, 1)
+    expect(treeKilled).toHaveLength(1)
   })
 
   it('closeOwner kills only that owner; closeAll kills the rest', () => {

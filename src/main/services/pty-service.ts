@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { statSync } from 'node:fs'
 import type { PtyDataPayload, PtyExitPayload, PtyOpenResult, ShellId, ShellProfile } from '../../shared/config'
@@ -36,6 +37,8 @@ export interface PtyServiceDeps {
   emitExit: (ownerId: number, p: PtyExitPayload) => void
   flushMs?: number
   flushBytes?: number
+  /** Kill a shell's whole process tree. Default: taskkill /T /F on win32 (node-pty's kill() leaves Git Bash children behind). */
+  killTree?: (pid: number) => void
 }
 
 interface Entry {
@@ -69,6 +72,11 @@ const defaultSpawn: PtySpawn = (file, args, opts) => {
   }) as unknown as PtyLike
 }
 
+const defaultKillTree = (pid: number): void => {
+  if (process.platform !== 'win32' || !Number.isInteger(pid) || pid <= 0) return
+  execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, () => {})
+}
+
 const clamp = (n: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, Math.floor(n) || lo))
 
 export function buildPtyEnv(src: Record<string, string | undefined>): Record<string, string> {
@@ -91,6 +99,8 @@ export class PtyService {
   private readonly flushMs: number
   private readonly flushBytes: number
 
+  private readonly killTree: (pid: number) => void
+
   constructor(private readonly deps: PtyServiceDeps) {
     this.spawn = deps.spawn ?? defaultSpawn
     this.shells = deps.shells ?? ((): ShellProfile[] => detectShells())
@@ -98,6 +108,7 @@ export class PtyService {
     this.env = deps.env ?? process.env
     this.flushMs = deps.flushMs ?? FLUSH_MS
     this.flushBytes = deps.flushBytes ?? FLUSH_BYTES
+    this.killTree = deps.killTree ?? defaultKillTree
   }
 
   listShells(): ShellProfile[] {
@@ -208,6 +219,13 @@ export class PtyService {
     if (e.timer) clearTimeout(e.timer)
     e.timer = undefined
     e.buf = ''
+    if (!e.exited) {
+      try {
+        this.killTree(e.pty.pid)
+      } catch {
+        /* best effort: pty.kill() below still runs */
+      }
+    }
     try {
       e.pty.kill()
     } catch {
