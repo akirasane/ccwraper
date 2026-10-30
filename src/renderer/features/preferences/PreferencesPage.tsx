@@ -5,6 +5,7 @@ import type { ShellId, ShellProfile } from '@shared/config'
 import type { AppInfo } from '@shared/events'
 import { Input, Toggle, fieldClass } from '@/components/ui'
 import { cn } from '@/lib/cn'
+import { AutoResumeCard } from '@/features/autoresume/AutoResumeCard'
 import { useTerminalStore } from '@/features/terminal/terminal-store'
 import { acceleratorFromEvent } from './accelerator'
 
@@ -350,7 +351,7 @@ export function PreferencesPage(): React.JSX.Element {
         <ShellSection />
         {/* Usage limit: the lead mounts <AutoResumeCard /> (features/autoresume, WP14) inside this section. */}
         <section aria-label="Usage limit" data-testid="prefs-usage-limit" className="border-b border-border empty:hidden">
-          {/* AUTORESUME-SLOT */}
+          <AutoResumeCard />
         </section>
         <AboutSection />
       </div>

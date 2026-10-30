@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { ChatView } from '@/features/chat/ChatView'
 import type { ChatTarget } from '@/features/chat/model/types'
 import { useFsChangedInvalidation } from '@/lib/config-queries'
+import { FirstRunCard } from '@/features/onboarding/FirstRunCard'
 import { CloseTabDialog } from '@/features/tabs/CloseTabDialog'
 import { useAutoResume } from '@/features/autoresume/autoresume'
 import { readPersistedTabs, startTabPersistence } from '@/features/tabs/tab-persist'
@@ -182,7 +183,10 @@ function Shell(): React.JSX.Element {
                   body={`${cwd} no longer exists, so sessions cannot be started or resumed here.`}
                 />
               ) : !target ? (
-                <Notice title="Select a project" body="Choose a project on the left, or open a folder to start." />
+                <div className="m-auto flex w-full max-w-md flex-col gap-4 px-6">
+                  <FirstRunCard cwd={cwd} />
+                  <Notice title="Select a project" body="Choose a project on the left, or open a folder to start." />
+                </div>
               ) : loading ? (
                 <Notice title="Loading session..." body="" />
               ) : (
