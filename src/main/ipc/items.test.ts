@@ -12,7 +12,6 @@ vi.mock('electron', () => ({
     removeHandler: (ch: string) => void handlers.delete(ch)
   }
 }))
-vi.mock('../../shared/frontmatter', async () => import('../../../tests/fixtures/items/fake-frontmatter'))
 
 import { createConfigPaths } from '../paths'
 import { PluginRegistry } from '../services/plugin-registry'

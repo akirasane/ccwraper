@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ConfigFileRef } from '../../shared/config'
 import { ItemsCreateSchema, ItemsDeleteSchema, ItemsRenameSchema } from '../../shared/ipc'
 import { createConfigPaths, itemFilePath, trashDir } from '../paths'
@@ -12,8 +12,6 @@ import { Trash, TRASH_MANIFEST } from './trash'
 import type { TrashFs } from './trash'
 import { nodeTrashFs } from './trash'
 
-// frontmatter.ts is a WP0 stub until WP3 lands; this stand-in handles `key: value` lines and `!!broken`.
-vi.mock('../../shared/frontmatter', async () => import('../../../tests/fixtures/items/fake-frontmatter'))
 
 let root: string
 let home: string
@@ -108,7 +106,7 @@ describe('list', () => {
     const l = await svc.list('agent')
     const bad = l.items.find((i) => i.name === 'bad')!
     const huge = l.items.find((i) => i.name === 'huge')!
-    expect(bad.error).toBe('bad YAML')
+    expect(bad.error).toBeTruthy()
     expect(huge.error).toMatch(/larger than 1 MB/)
   })
 

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FsChangedPayload } from '../../shared/config'
 import { createConfigPaths } from '../paths'
 import { ConfigService } from './config-service'
@@ -11,7 +11,6 @@ import { ItemsService } from './items-service'
 import { PluginRegistry } from './plugin-registry'
 import { Trash } from './trash'
 
-vi.mock('../../shared/frontmatter', async () => import('../../../tests/fixtures/items/fake-frontmatter'))
 
 class FakeWatcher implements WatcherLike {
   watched = new Set<string>()
