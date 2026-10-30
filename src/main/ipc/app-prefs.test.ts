@@ -59,6 +59,27 @@ describe('app IPC', () => {
   })
 })
 
+describe('getAppInfo', () => {
+  it('reports the unpacked bundled path (not empty) when the bundled binary is used', async () => {
+    const paths = await import('../paths')
+    const prev = process.env['CCWRAP_CLAUDE_SOURCE']
+    process.env['CCWRAP_CLAUDE_SOURCE'] = 'bundled'
+    paths.resetClaudeBinaryCache()
+    try {
+      const { getAppInfo } = await import('./app')
+      const info = getAppInfo()
+      expect(info.claudeSource).toBe('bundled')
+      expect(info.claudePath).toBe(paths.resolveClaudeExecutable())
+      expect(info.claudePath).toBeTruthy()
+      expect(info.claudePath).not.toContain('app.asar' + require('node:path').sep + 'node_modules')
+    } finally {
+      if (prev === undefined) delete process.env['CCWRAP_CLAUDE_SOURCE']
+      else process.env['CCWRAP_CLAUDE_SOURCE'] = prev
+      paths.resetClaudeBinaryCache()
+    }
+  })
+})
+
 describe('prefs IPC', () => {
   it('get, set (with hotkey status), validation and prefs:changed broadcast', async () => {
     const prefs = new PrefsService(join(dir, 'prefs.json'))

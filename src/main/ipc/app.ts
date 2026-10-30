@@ -2,16 +2,17 @@ import { app, ipcMain } from 'electron'
 import { AuthStatusArgsSchema, IpcChannels, SetActiveSessionSchema } from '../../shared/ipc'
 import type { AuthStatus } from '../../shared/app'
 import type { AppInfo } from '../../shared/events'
-import { readSdkVersions, resolveClaudeBinary, trashDir } from '../paths'
+import { readSdkVersions, resolveClaudeBinary, resolveClaudeExecutable, trashDir } from '../paths'
 import type { AuthStatusService } from '../services/auth-status'
 import type { Disposer } from './dispose'
 import { removeHandlers } from './dispose'
 
 export function getAppInfo(): AppInfo {
   const bin = resolveClaudeBinary()
+  const exe = resolveClaudeExecutable()
   const userData = app.getPath('userData')
   return {
-    ...(bin.path ? { claudePath: bin.path } : {}),
+    ...(exe ? { claudePath: exe } : {}),
     ...(bin.version ? { claudeVersion: bin.version } : {}),
     claudeSource: bin.source,
     sdkVersion: readSdkVersions().sdk ?? 'unknown',

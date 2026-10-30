@@ -23,6 +23,9 @@ describe('mapAuthStatus', () => {
     expect(m).toEqual({ state: 'signed_in', method: 'subscription' })
     expect(JSON.stringify(m)).not.toContain('SENTINEL')
   })
+  it('maps the real observed signed-in value authMethod "claude.ai" to subscription', () => {
+    expect(mapAuthStatus('{"loggedIn":true,"authMethod":"claude.ai"}')).toEqual({ state: 'signed_in', method: 'subscription' })
+  })
   it('maps the signed-out fixture', () => {
     expect(mapAuthStatus(fx('signed-out.json'))).toEqual({ state: 'signed_out' })
   })
