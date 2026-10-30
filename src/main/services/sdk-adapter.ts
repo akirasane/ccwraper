@@ -13,6 +13,7 @@ import type {
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ModelOption } from '../../shared/config'
 import type { Block, SessionEvent, Usage } from '../../shared/events'
+import { limitTypeFromText, looksLikeUsageLimit, normalizeResetsAt, parseLimitReset } from '../../shared/rate-limit'
 import { resolveClaudeExecutable } from '../paths'
 
 export type PermissionModeName = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'dontAsk' | 'auto'
@@ -333,6 +334,14 @@ export interface MapState {
   msgId: string
   model?: string
   acc?: TurnUsageAccumulator
+  /** Per-turn usage-limit evidence (WP14); consumed and cleared by the turn's `result`. */
+  limit?: { rejected: boolean; resetsAt?: number; limitType?: string; apiError: boolean; text: string }
+  /** Test seam: the clock used to parse "resets 4:10pm". */
+  now?: () => number
+}
+
+function limitEvidence(state: MapState): NonNullable<MapState['limit']> {
+  return (state.limit ??= { rejected: false, apiError: false, text: '' })
 }
 
 /** Sum result.modelUsage over models (cumulative session, main + subagents). */
@@ -523,6 +532,12 @@ export function mapMessage(m: SDKMessage, state: MapState): SessionEvent[] {
         }
       }
       if (m.error) out.push({ t: 'error', message: `assistant error: ${String(m.error)}` })
+      if (m.error === 'rate_limit' && !parent) {
+        const ev = limitEvidence(state)
+        ev.apiError = true
+        const text = blocks.map((b) => (b.type === 'text' ? b.text : '')).join(' ')
+        ev.text = `${ev.text} ${text}`.trim().slice(0, 1000)
+      }
       break
     }
     case 'user': {
@@ -540,7 +555,40 @@ export function mapMessage(m: SDKMessage, state: MapState): SessionEvent[] {
       }
       break
     }
+    case 'rate_limit_event': {
+      const info = m.rate_limit_info
+      if (info.status === 'rejected') {
+        const ev = limitEvidence(state)
+        ev.rejected = true
+        const at = normalizeResetsAt(info.resetsAt)
+        if (at !== undefined) ev.resetsAt = at
+        if (info.rateLimitType) ev.limitType = info.rateLimitType
+      } else if (state.limit) {
+        // Limit info moved on to allowed: an earlier rejection no longer describes the session.
+        state.limit.rejected = false
+        delete state.limit.resetsAt
+      }
+      break
+    }
     case 'result': {
+      const ev = state.limit
+      state.limit = undefined
+      if (m.is_error && ev) {
+        const resultText = m.subtype === 'success' ? m.result : ''
+        const text = `${ev.text} ${resultText}`.trim()
+        // A plain API 429 also carries error 'rate_limit'; only a rejected limit event or limit wording counts.
+        if (ev.rejected || (ev.apiError && looksLikeUsageLimit(text))) {
+          const fromText = ev.resetsAt === undefined ? parseLimitReset(text, (state.now ?? Date.now)()) : undefined
+          const resetsAt = ev.resetsAt ?? fromText
+          const limitType = ev.limitType ?? limitTypeFromText(text)
+          out.push({
+            t: 'rate_limited',
+            source: ev.resetsAt !== undefined ? 'event' : fromText !== undefined ? 'text' : 'none',
+            ...(resetsAt !== undefined ? { resetsAt } : {}),
+            ...(limitType ? { limitType } : {})
+          })
+        }
+      }
       const contextWindow = pickContextWindow(m as { modelUsage?: unknown }, state.model)
       const sessionUsage = sumModelUsage((m as { modelUsage?: unknown }).modelUsage)
       const modelUsage = mapModelUsage((m as { modelUsage?: unknown }).modelUsage)
