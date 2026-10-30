@@ -70,6 +70,9 @@ async function open(name: string) {
   await userEvent.click(await screen.findByText(name))
 }
 
+// Full-tree renders and many simulated keystrokes: well under 5 s idle, but they approach it under parallel CPU load.
+vi.setConfig({ testTimeout: 20_000 })
+
 beforeEach(() => {
   window.localStorage.clear()
   useDirtyRegistry.setState({ dirty: {}, pending: null })

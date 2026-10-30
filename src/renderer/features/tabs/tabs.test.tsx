@@ -61,6 +61,9 @@ function makeApi() {
   }
 }
 
+// Full-tree renders and many simulated keystrokes: well under 5 s idle, but they approach it under parallel CPU load.
+vi.setConfig({ testTimeout: 20_000 })
+
 beforeEach(() => {
   seq = 0
   queryClient.clear()

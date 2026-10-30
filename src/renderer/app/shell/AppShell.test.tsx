@@ -48,7 +48,11 @@ function makeApi() {
   }
 }
 
+// Full-tree renders and many simulated keystrokes: well under 5 s idle, but they approach it under parallel CPU load.
+vi.setConfig({ testTimeout: 20_000 })
+
 beforeEach(() => {
+  vi.unstubAllGlobals()
   queryClient.clear()
   useChatStore.setState({ convs: {}, localToConv: {}, modes: {} })
   useWorkspaceStore.setState({ cwd: undefined, extraCwds: [], activeConvId: undefined, activeTitle: undefined, activeBranch: undefined, loadingSession: false })
@@ -125,6 +129,9 @@ describe('AppShell', () => {
   })
 
   it('status bar: shows latest cost (not a sum) and ctx %', async () => {
+    // Reduced motion makes CostMeter settle immediately instead of running a 600 ms rAF tick,
+    // which is what timed out under CPU load.
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener() {}, removeEventListener() {} }))
     useWorkspaceStore.setState({ cwd: 'C:\\fixture\\alpha' })
     render(<AppShell />)
     await screen.findByTestId('chat-view')
@@ -138,7 +145,7 @@ describe('AppShell', () => {
     act(() => onEvent({ localId, event: { t: 'init', sessionId: 'x', model: 'opus-test', tools: [], mcp: [], slashCommands: [], cwd: 'C:\\fixture\\alpha' } }))
     act(() => onEvent({ localId, event: result(0.5) }))
     act(() => onEvent({ localId, event: result(0.75) }))
-    await waitFor(() => expect(screen.getByTestId('cost-meter')).toHaveTextContent('$0.7500'), { timeout: 6000 })
+    await waitFor(() => expect(screen.getByTestId('cost-meter')).toHaveTextContent('$0.7500'), )
     expect(screen.getByTestId('cost-meter')).toHaveAttribute('data-value', '0.75')
     expect(screen.getByTestId('status-ctx')).toHaveTextContent('ctx 50%')
     // display name (family match), the raw id stays in the title

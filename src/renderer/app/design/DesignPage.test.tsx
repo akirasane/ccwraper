@@ -31,5 +31,5 @@ describe('DesignPage', () => {
     expect((window as unknown as { ccwrap: { session: { start: unknown } } }).ccwrap.session.start).toBe(boom)
     expect(err).not.toHaveBeenCalled()
     err.mockRestore()
-  })
+  }, 20_000) // renders the whole design catalog: ~1.5 s idle, >3 s under parallel CPU load
 })

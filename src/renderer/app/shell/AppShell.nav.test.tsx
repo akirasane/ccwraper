@@ -61,13 +61,14 @@ describe('AppShell navigation skeleton', () => {
     const user = userEvent.setup()
     render(<AppShell />)
     await user.click(screen.getByRole('button', { name: label }))
-    const page = await screen.findByTestId(testId)
+    // lazy route chunk: first import is transformed on demand, which can take >1 s under CPU load
+    const page = await screen.findByTestId(testId, undefined, { timeout: 10_000 })
     expect(page).toHaveTextContent('C:\\fixture\\alpha')
     expect(screen.getByRole('button', { name: label })).toHaveAttribute('aria-current', 'page')
     await user.click(screen.getByRole('button', { name: 'Sessions' }))
     expect(screen.queryByTestId(testId)).toBeNull()
     expect(useWorkspaceStore.getState().view).toBe('chat')
-  })
+  }, 20_000)
 
   it('Ctrl+Backquote toggles the terminal slot', async () => {
     render(<AppShell />)

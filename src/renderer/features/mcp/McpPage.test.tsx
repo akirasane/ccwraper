@@ -83,7 +83,7 @@ describe('McpPage', () => {
 
   it('explains approved project servers in a tooltip', async () => {
     api = makeApi({ servers: [{ ...servers[1]!, approval: 'approved' }] })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     mount()
     await screen.findByText('beta')
     await user.tab()
@@ -94,8 +94,9 @@ describe('McpPage', () => {
     expect(tip).toHaveTextContent('may still print Pending approval; sessions use this setting.')
   })
 
-  it('adds a stdio server with env', async () => {
-    const user = userEvent.setup()
+  // ~40 simulated keystrokes; delay: null skips the per-key macrotask hop
+  it('adds a stdio server with env', { timeout: 20_000 }, async () => {
+    const user = userEvent.setup({ delay: null })
     mount()
     await screen.findByText('alpha')
     await user.click(screen.getByRole('button', { name: /add server/i }))
@@ -118,7 +119,7 @@ describe('McpPage', () => {
   })
 
   it('validates before calling the CLI', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     mount()
     await screen.findByText('alpha')
     await user.click(screen.getByRole('button', { name: /add server/i }))
@@ -131,7 +132,7 @@ describe('McpPage', () => {
 
   it('shows CLI output when add fails', async () => {
     api.mcp.add.mockResolvedValueOnce({ ok: false, message: 'add failed', output: 'MCP server x already exists' } as never)
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     mount()
     await screen.findByText('alpha')
     await user.click(screen.getByRole('button', { name: /add server/i }))
@@ -142,7 +143,7 @@ describe('McpPage', () => {
   })
 
   it('rename sends mcp.update with newName', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     mount()
     await screen.findByText('alpha')
     await user.click(screen.getByRole('button', { name: 'Edit alpha' }))
@@ -161,7 +162,7 @@ describe('McpPage', () => {
   })
 
   it('asks for confirmation before removing', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     mount()
     await screen.findByText('alpha')
     await user.click(screen.getByRole('button', { name: 'Remove alpha' }))
@@ -177,7 +178,7 @@ describe('McpPage', () => {
     ['pending', 'Pending approval']
   ] as const)('test result chip: %s', async (status, label) => {
     api.mcp.test.mockResolvedValueOnce({ name: 'alpha', status, output: 'RAW OUTPUT', durationMs: 500 })
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     mount()
     await screen.findByText('alpha')
     await user.click(screen.getByRole('button', { name: 'Test alpha' }))
@@ -187,7 +188,7 @@ describe('McpPage', () => {
   })
 
   it('approve patches settings.local.json and keeps other keys', async () => {
-    const user = userEvent.setup()
+    const user = userEvent.setup({ delay: null })
     mount()
     await screen.findByText('beta')
     await user.click(screen.getByRole('button', { name: 'Approve' }))

@@ -88,5 +88,5 @@ describe('AppShell discard dialog', () => {
     await user.click(screen.getByRole('button', { name: 'MCP' }))
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Discard' }))
     expect(useWorkspaceStore.getState().view).toBe('mcp')
-  })
+  }, 20_000) // full AppShell render plus two dialog round-trips
 })

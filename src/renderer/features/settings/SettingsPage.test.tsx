@@ -58,6 +58,9 @@ function mount(cwd?: string) {
 
 const USER_TEXT = '{\n  "model": "opus",\n  "foo": { "bar": 1 },\n  "env": { "API_KEY": "sk-secret-123" }\n}\n'
 
+// Full-tree renders and many simulated keystrokes: well under 5 s idle, but they approach it under parallel CPU load.
+vi.setConfig({ testTimeout: 20_000 })
+
 beforeEach(() => {
   window.localStorage.clear()
   setSettingsDirty(false)

@@ -168,7 +168,7 @@ describe('backups', () => {
     // the oldest ones were dropped: the newest backup holds v6
     const newest = names[names.length - 1]!
     expect(await readFile(join(backups, newest), 'utf8')).toBe('{"v":6}')
-  })
+  }, 20_000) // ~30 sequential real fs ops (read, backup, prune, atomic write) x 7 runs
 
   it('uses distinct backup names for same-named files in different projects', async () => {
     const other = join(root, 'other')

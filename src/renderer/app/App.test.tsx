@@ -18,5 +18,5 @@ describe('hash router', () => {
     render(<App />)
     expect(screen.getByTestId('design-page')).toBeInTheDocument()
     window.location.hash = ''
-  })
+  }, 20_000) // mounts AppShell and DesignPage back to back
 })
