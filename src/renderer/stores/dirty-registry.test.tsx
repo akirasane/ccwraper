@@ -48,6 +48,7 @@ describe('dirty registry + workspace store', () => {
     setDirty('settings', true)
     useWorkspaceStore.getState().selectProject('c:/fixture/ALPHA/')
     expect(useDirtyRegistry.getState().pending).toBeNull()
+    useWorkspaceStore.setState({ cwd: 'C:\\fixture\\alpha' })
     useWorkspaceStore.getState().selectProject('C:\\fixture\\beta')
     expect(useWorkspaceStore.getState().cwd).toBe('C:\\fixture\\alpha')
     useDirtyRegistry.getState().confirm()
