@@ -6,6 +6,7 @@ import { Tooltip } from '@/components/ui'
 import { useNow } from '@/lib/use-now'
 import { useAppInfo } from '@/features/sessions/queries'
 import { modelLabel, useModels } from '@/features/chat/ModelMenu'
+import { assumedContextWindow } from '@shared/models'
 import { getCachedCtxWindow, useChatStore } from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import type { PermissionMode } from '@shared/ipc'
@@ -84,7 +85,7 @@ export function StatusBar(): React.JSX.Element {
   const models = useModels(conv?.localId)
 
   const st = STATE[conv?.status ?? 'idle'] ?? STATE.idle!
-  const ctx = conv ? selectLiveContext(conv, getCachedCtxWindow(conv.meta.model)) : undefined
+  const ctx = conv ? selectLiveContext(conv, getCachedCtxWindow(conv.meta.model), assumedContextWindow(conv.meta.model)) : undefined
   const mode = conv?.meta.permissionMode ?? localMode ?? 'default'
   const modes = MODES.some((m) => m.value === mode) ? MODES : [...MODES, { value: mode as PermissionMode, label: mode }]
   const claude = app ? `claude ${app.claudeVersion ?? '?'} (${app.claudeSource})` : undefined
@@ -125,11 +126,17 @@ export function StatusBar(): React.JSX.Element {
           {sep}
           <span
             data-testid="status-ctx"
-            data-estimated={!!conv?.turn && !ctx.exact}
+            data-estimated={ctx.assumed || (!!conv?.turn && !ctx.exact)}
             className="tabular-nums"
-            title={conv?.turn && !ctx.exact ? 'Context window used (estimated while streaming)' : 'Context window used'}
+            title={
+              ctx.assumed
+                ? 'Context window assumed until the first reply'
+                : conv?.turn && !ctx.exact
+                  ? 'Context window used (estimated while streaming)'
+                  : 'Context window used'
+            }
           >
-            ctx {conv?.turn && !ctx.exact ? '~' : ''}
+            ctx {ctx.assumed || (conv?.turn && !ctx.exact) ? '~' : ''}
             {Math.round(ctx.fraction * 100)}%
           </span>
         </>

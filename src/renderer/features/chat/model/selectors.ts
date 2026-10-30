@@ -28,6 +28,8 @@ export interface LiveContext {
   window: number
   fraction: number
   exact: boolean
+  /** the window is a guess (no result or cached value yet): shown with ~ */
+  assumed: boolean
 }
 export interface WorkingState {
   verb: 'working' | 'thinking' | 'tool' | 'approval'
@@ -107,8 +109,10 @@ export function selectRunningTasks(c: ConvState): TaskView[] {
 }
 
 /** Context from the latest main-thread usage_live (not result.usage); falls back to the last result. */
-export function selectLiveContext(c: ConvState, fallbackWindow?: number): LiveContext | undefined {
-  const window = c.lastResult?.contextWindow ?? fallbackWindow
+export function selectLiveContext(c: ConvState, fallbackWindow?: number, assumedWindow?: number): LiveContext | undefined {
+  const known = c.lastResult?.contextWindow ?? fallbackWindow
+  const assumed = !known && !!assumedWindow
+  const window = known ?? assumedWindow
   let value: LiveContext | undefined
   if (window) {
     const t = c.turn?.contextTokens ? c.turn : c.lastTurn?.contextTokens ? c.lastTurn : undefined
@@ -117,18 +121,19 @@ export function selectLiveContext(c: ConvState, fallbackWindow?: number): LiveCo
         used: t.contextTokens,
         window,
         fraction: Math.min(1, t.contextTokens / window),
-        exact: t.contextExact === true
+        exact: t.contextExact === true,
+        assumed
       }
     } else {
       const f = selectContextUsage(c)
       if (f !== undefined && c.lastResult) {
         const u = c.lastResult.usage
-        value = { used: u.inputTokens + u.cacheReadTokens + u.cacheCreationTokens, window, fraction: f, exact: false }
+        value = { used: u.inputTokens + u.cacheReadTokens + u.cacheCreationTokens, window, fraction: f, exact: false, assumed }
       }
     }
   }
   const prev = lastLive.get(c.convId)
-  if (prev && value && prev.used === value.used && prev.window === value.window && prev.exact === value.exact) return prev
+  if (prev && value && prev.used === value.used && prev.window === value.window && prev.exact === value.exact && prev.assumed === value.assumed) return prev
   lastLive.set(c.convId, value)
   return value
 }

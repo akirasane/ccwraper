@@ -71,6 +71,15 @@ describe('activity model', () => {
     expect(c.tasks['task1']!.status).toBe('stopped')
   })
 
+  it('uses the assumed window only when no result or cached window is known', () => {
+    let c = addUserItem(fresh(), 'hi', 0)
+    c = reduce(c, live(100, 400, false), 1)
+    const noResult = { ...c, lastResult: undefined }
+    expect(selectLiveContext(noResult, undefined, 200_000)).toMatchObject({ window: 200_000, assumed: true })
+    expect(selectLiveContext(noResult, 1000, 200_000)).toMatchObject({ window: 1000, assumed: false })
+    expect(selectLiveContext(noResult)).toBeUndefined()
+  })
+
   it('an exact output lower than the estimate is accepted', () => {
     let c = addUserItem(fresh(), 'hi', 0)
     c = reduce(c, live(100, 400, false), 1)
