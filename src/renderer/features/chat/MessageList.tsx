@@ -1,7 +1,9 @@
+import { QueryClientContext } from '@tanstack/react-query'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import * as React from 'react'
 import { cn } from '@/lib/cn'
 import { useChatStore } from '@/stores/chat-store'
+import { FirstRunCard } from '@/features/onboarding/FirstRunCard'
 import { ItemView } from './ItemView'
 import { selectTopLevelItems } from './model/selectors'
 import type { ChatItem } from './model/types'
@@ -15,12 +17,13 @@ const EMPTY: ChatItem[] = []
  * streaming unless the user scrolled up. Only newly appended items get a transform/opacity enter, applied to the
  * inner element (the absolutely positioned virtual row is never animated).
  */
-export function MessageList({ convId }: { convId: string }): React.JSX.Element {
+export function MessageList({ convId, cwd }: { convId: string; cwd?: string }): React.JSX.Element {
   const items =
     useChatStore((s) => {
       const c = s.convs[convId]
       return c ? selectTopLevelItems(c) : undefined
     }) ?? EMPTY
+  const hasQueryClient = !!React.useContext(QueryClientContext)
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const stick = React.useRef(true)
   const seen = React.useRef<Set<string>>(new Set())
@@ -78,8 +81,9 @@ export function MessageList({ convId }: { convId: string }): React.JSX.Element {
       className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
     >
       {items.length === 0 ? (
-        <div className="flex h-full items-center justify-center px-6 text-base text-fg-3">
-          Send a message to start the session.
+        <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-base text-fg-3">
+          {hasQueryClient && <FirstRunCard {...(cwd ? { cwd } : {})} />}
+          <span>Send a message to start the session.</span>
         </div>
       ) : (
         <div

@@ -112,3 +112,24 @@ describe('AuthHint', () => {
     expect(screen.queryByTestId('auth-hint')).toBeNull()
   })
 })
+
+describe('FirstRunCard in the chat empty state', () => {
+  it('shows inside an empty MessageList for a signed-out user and stays out without a QueryClient', async () => {
+    const { MessageList } = await import('../chat/MessageList')
+    useChatStore.getState().createConv({ convId: 'fr1', cwd: 'C:\proj' })
+    ;(window as unknown as { ccwrap: unknown }).ccwrap = {
+      app: { info: vi.fn(async () => info), authStatus: vi.fn(async () => out) }
+    }
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const r = render(
+      <QueryClientProvider client={qc}>
+        <MessageList convId="fr1" cwd="C:\proj" />
+      </QueryClientProvider>
+    )
+    expect(await screen.findByTestId('first-run-card')).toBeTruthy()
+    expect(screen.getByText('Send a message to start the session.')).toBeTruthy()
+    r.unmount()
+    render(<MessageList convId="fr1" cwd="C:\proj" />)
+    expect(screen.queryByTestId('first-run-card')).toBeNull()
+  })
+})

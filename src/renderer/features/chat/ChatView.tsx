@@ -66,7 +66,7 @@ export function ChatView({ target }: { target: ChatTarget }): React.JSX.Element 
       className="ccw-chat relative flex h-full min-h-0 min-w-0 flex-col bg-bg-0"
     >
       {has && <HistoryNotice convId={convId} />}
-      {has ? <MessageList convId={convId} /> : <div className="flex-1" />}
+      {has ? <MessageList convId={convId} cwd={target.cwd} /> : <div className="flex-1" />}
       {has && <WorkingRow convId={convId} />}
       {has && <AuthHint convId={convId} cwd={target.cwd} />}
       {has && <AutoResumeBanner convId={convId} />}
