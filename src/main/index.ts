@@ -3,9 +3,11 @@ import { join } from 'node:path'
 import { IpcChannels } from '../shared/ipc'
 import type { SessionEventPayload } from '../shared/ipc'
 import { registerIpc } from './ipc'
+import type { Disposer } from './ipc/dispose'
 import { SessionManager } from './services/session-manager'
 
 let win: BrowserWindow | null = null
+let disposeIpc: Disposer | null = null
 
 function isHttpUrl(url: string): boolean {
   try {
@@ -58,15 +60,26 @@ function createWindow(): void {
 }
 
 void app.whenReady().then(() => {
-  registerIpc({ manager })
+  disposeIpc = registerIpc({
+    manager,
+    send: (channel, payload) => {
+      if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
+    }
+  })
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-app.on('before-quit', () => manager.closeAll())
-app.on('window-all-closed', () => {
+function shutdown(): void {
   manager.closeAll()
+  disposeIpc?.()
+  disposeIpc = null
+}
+
+app.on('before-quit', shutdown)
+app.on('window-all-closed', () => {
+  shutdown()
   if (process.platform !== 'darwin') app.quit()
 })

@@ -6,9 +6,12 @@ import {
   SessionSendSchema,
   SessionStartSchema
 } from '../../shared/ipc'
+import type { ModelOption } from '../../shared/config'
 import type { SessionManager } from '../services/session-manager'
+import type { Disposer } from './dispose'
+import { removeHandlers } from './dispose'
 
-export function registerSessionIpc(manager: SessionManager): void {
+export function registerSessionIpc(manager: SessionManager): Disposer {
   ipcMain.handle(IpcChannels.sessionStart, (_e, raw: unknown) => manager.start(SessionStartSchema.parse(raw)))
   ipcMain.handle(IpcChannels.sessionSend, (_e, raw: unknown) => {
     const a = SessionSendSchema.parse(raw)
@@ -25,8 +28,21 @@ export function registerSessionIpc(manager: SessionManager): void {
   ipcMain.handle(IpcChannels.sessionPermissionReply, (_e, raw: unknown) =>
     manager.permissionReply(PermissionReplySchema.parse(raw))
   )
+  // STUB (WP0): WP4 wires this to manager.supportedModels(localId).
+  ipcMain.handle(IpcChannels.sessionSupportedModels, (): ModelOption[] => [])
   ipcMain.handle(IpcChannels.pickDirectory, async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return r.canceled ? null : (r.filePaths[0] ?? null)
   })
+  return removeHandlers(
+    IpcChannels.sessionStart,
+    IpcChannels.sessionSend,
+    IpcChannels.sessionInterrupt,
+    IpcChannels.sessionClose,
+    IpcChannels.sessionSetModel,
+    IpcChannels.sessionSetPermissionMode,
+    IpcChannels.sessionPermissionReply,
+    IpcChannels.sessionSupportedModels,
+    IpcChannels.pickDirectory
+  )
 }
