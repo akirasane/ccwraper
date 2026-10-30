@@ -8,7 +8,19 @@ import {
   reduceAll,
   resolvePermission
 } from '@/features/chat/model/reducer'
+import { selectIsRunning, selectRunningTasks } from '@/features/chat/model/selectors'
 import type { ChatTarget, ConvState } from '@/features/chat/model/types'
+
+/** Main caps live sessions at this many; the renderer suspends the least recently used idle one first (P4 D2). */
+export const MAX_LIVE_SESSIONS = 5
+export const CAP_MESSAGE = '5 sessions are active. Stop or close one to start another.'
+
+/** A conversation with an open session in main (bound and not ended). */
+export const isLive = (c: ConvState): boolean => !!c.localId && !c.closed
+
+/** No running turn, no pending permission, no running task: safe to suspend or close silently. */
+export const isIdleConv = (c: ConvState): boolean =>
+  !selectIsRunning(c) && c.pending.length === 0 && selectRunningTasks(c).length === 0
 
 interface ChatState {
   convs: Record<string, ConvState>
@@ -18,6 +30,16 @@ interface ChatState {
   modes: Record<string, PermissionMode>
   /** Model chosen on a draft (no live session yet); sent with session:start. */
   draftModels: Record<string, string>
+  /** Composer text per conversation (P4 D2); survives tab switches, not restarts. */
+  drafts: Record<string, string>
+  /** Last time each conversation was shown or submitted to (LRU for suspension). */
+  lastActive: Record<string, number>
+  setDraft: (convId: string, text: string) => void
+  touchConv: (convId: string) => void
+  /** Close the main session but keep the conversation; its next submit resumes it. */
+  suspend: (convId: string) => Promise<void>
+  /** Close the main session (if any) and drop the conversation. */
+  closeConv: (convId: string) => Promise<void>
   createConv: (target: ChatTarget) => void
   removeConv: (convId: string) => void
   seedFromHistory: (convId: string, events: SessionEvent[]) => void
@@ -39,6 +61,8 @@ interface ChatState {
 
 // Events that arrive before start() resolves have no binding yet; replayed on bind.
 const orphans = new Map<string, SessionEvent[]>()
+// Handles of sessions we closed on purpose: their trailing events must not pile up as orphans.
+const retired = new Set<string>()
 // Delta coalescing: at most one store update per animation frame.
 let queue: { localId: string; event: SessionEvent }[] = []
 let scheduled: number | ReturnType<typeof setTimeout> | undefined
@@ -121,6 +145,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     set((s) => {
       const convs = { ...s.convs }
       for (const { localId, event } of items) {
+        if (retired.has(localId)) continue
         const convId = s.localToConv[localId]
         const c = convId ? convs[convId] : undefined
         if (!convId || !c) {
@@ -155,6 +180,53 @@ export const useChatStore = create<ChatState>((set, get) => {
     localToConv: {},
     modes: {},
     draftModels: {},
+    drafts: {},
+    lastActive: {},
+
+    setDraft: (convId, text) =>
+      set((s) => {
+        if ((s.drafts[convId] ?? '') === text) return s
+        if (text === '') {
+          const { [convId]: _d, ...drafts } = s.drafts
+          void _d
+          return { drafts }
+        }
+        return { drafts: { ...s.drafts, [convId]: text } }
+      }),
+
+    touchConv: (convId) => set((s) => ({ lastActive: { ...s.lastActive, [convId]: Date.now() } })),
+
+    suspend: async (convId) => {
+      const c = get().convs[convId]
+      const localId = c?.localId
+      if (!c || !localId) return
+      retired.add(localId)
+      const { localId: _l, closed: _c, ...rest } = c
+      void _l
+      void _c
+      const resume = c.meta.sessionId ?? c.resumeSessionId
+      set((s) => ({
+        localToConv: Object.fromEntries(Object.entries(s.localToConv).filter(([k]) => k !== localId)),
+        convs: { ...s.convs, [convId]: { ...rest, ...(resume ? { resumeSessionId: resume } : {}), status: 'idle' } }
+      }))
+      try {
+        await window.ccwrap.session.close(localId)
+      } catch {
+        /* already gone in main */
+      }
+    },
+
+    closeConv: async (convId) => {
+      const localId = get().convs[convId]?.localId
+      if (localId) {
+        try {
+          await window.ccwrap.session.close(localId)
+        } catch {
+          /* already gone in main */
+        }
+      }
+      get().removeConv(convId)
+    },
 
     createConv: (target) =>
       set((s) => {
@@ -169,8 +241,12 @@ export const useChatStore = create<ChatState>((set, get) => {
       set((s) => {
         const { [convId]: gone, ...convs } = s.convs
         const localToConv = Object.fromEntries(Object.entries(s.localToConv).filter(([, v]) => v !== convId))
-        void gone
-        return { convs, localToConv }
+        if (gone?.localId) retired.add(gone.localId)
+        const { [convId]: _d, ...drafts } = s.drafts
+        const { [convId]: _a, ...lastActive } = s.lastActive
+        void _d
+        void _a
+        return { convs, localToConv, drafts, lastActive }
       }),
 
     seedFromHistory: (convId, events) => patch(convId, (c) => reduceAll(c, events, Date.now())),
@@ -201,6 +277,19 @@ export const useChatStore = create<ChatState>((set, get) => {
     submit: async (convId, text) => {
       const c = get().convs[convId]
       if (!c) return
+      if (!c.localId && Object.values(get().convs).filter(isLive).length >= MAX_LIVE_SESSIONS) {
+        // At the cap: free a slot by suspending the least recently used idle conversation.
+        const victim = Object.values(get().convs)
+          .filter((x) => isLive(x) && isIdleConv(x) && (x.meta.sessionId ?? x.resumeSessionId))
+          .sort((a, b) => (get().lastActive[a.convId] ?? 0) - (get().lastActive[b.convId] ?? 0))[0]
+        if (!victim) {
+          get().setDraft(convId, text)
+          fail(convId, new Error(CAP_MESSAGE))
+          return
+        }
+        await get().suspend(victim.convId)
+      }
+      set((s) => ({ lastActive: { ...s.lastActive, [convId]: Date.now() } }))
       patch(convId, (x) => addUserItem(x, text, Date.now()))
       try {
         if (c.localId) {
