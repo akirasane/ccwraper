@@ -75,6 +75,18 @@ describe('PtyService (fake pty)', () => {
     expect(env.PATH).toBe('x')
   })
 
+  it('spawns with the bundled OpenConsole so a self-exited shell leaves no conhost', () => {
+    const { svc, spawned, ptys, treeKilled, exits } = make()
+    const r = svc.open('pwsh', 'C:\\proj', 80, 24, 1)
+    expect(spawned[0]!.opts.useConptyDll).toBe(true)
+    ptys[0]!.exitCb({ exitCode: 0 })
+    svc.close(r.ptyId, 1)
+    svc.closeAll()
+    expect(exits).toHaveLength(1)
+    // natural exit needs no tree kill, and close() after exit never runs one
+    expect(treeKilled).toEqual([])
+  })
+
   it('buildPtyEnv strips electron vars case-insensitively', () => {
     const e = buildPtyEnv({ electron_run_as_node: '1', ELECTRON_NO_ATTACH_CONSOLE: '1', A: 'b', U: undefined })
     expect(Object.keys(e).sort()).toEqual(['A', 'COLORTERM', 'TERM_PROGRAM'])

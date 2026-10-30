@@ -8,7 +8,16 @@ export const MAX_PTYS = 8
 export const FLUSH_MS = 8
 export const FLUSH_BYTES = 64 * 1024
 
-const STRIP_ENV = new Set(['ELECTRON_RUN_AS_NODE', 'ELECTRON_RENDERER_URL', 'ELECTRON_NO_ATTACH_CONSOLE'])
+/**
+ * Use node-pty's bundled OpenConsole (conpty.dll) instead of the system conhost.exe.
+ * Probe (P3 WP7): with the system conhost a shell that exits on its own leaves its
+ * conhost.exe until the app quits and kill() after exit does not release it; with the
+ * bundled OpenConsole, 0 host processes remain after a natural `exit` (pwsh, Git Bash).
+ * Packaging (P4) must unpack node-pty's build/Release/conpty directory from the asar.
+ */
+export const USE_CONPTY_DLL = true
+
+const STRIP_ENV =new Set(['ELECTRON_RUN_AS_NODE', 'ELECTRON_RENDERER_URL', 'ELECTRON_NO_ATTACH_CONSOLE'])
 
 /** The subset of node-pty's IPty we use. */
 export interface PtyLike {
@@ -25,6 +34,7 @@ export interface SpawnOptions {
   cols: number
   rows: number
   env: Record<string, string>
+  useConptyDll: boolean
 }
 export type PtySpawn = (file: string, args: string[], opts: SpawnOptions) => PtyLike
 
@@ -68,7 +78,8 @@ const defaultSpawn: PtySpawn = (file, args, opts) => {
     cols: opts.cols,
     rows: opts.rows,
     env: opts.env,
-    useConpty: true
+    useConpty: true,
+    useConptyDll: opts.useConptyDll
   }) as unknown as PtyLike
 }
 
@@ -129,7 +140,8 @@ export class PtyService {
       cwd,
       cols: clamp(cols, 2, 500),
       rows: clamp(rows, 2, 300),
-      env: buildPtyEnv(this.env)
+      env: buildPtyEnv(this.env),
+      useConptyDll: USE_CONPTY_DLL
     })
     const entry: Entry = { id: randomUUID(), ownerId, pty, buf: '', exited: false }
     this.ptys.set(entry.id, entry)
