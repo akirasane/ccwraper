@@ -324,6 +324,35 @@ describe('startSdkSession wiring', () => {
     expect(kinds[kinds.length - 1]).toBe('session_closed')
   })
 
+  it('an unprompted turn (background task reaction) emits status running and resets usage', async () => {
+    const result = (): SDKMessage =>
+      msg({ type: 'result', subtype: 'success', is_error: false, result: 'ok', total_cost_usd: 0, duration_ms: 1, num_turns: 1, usage: {}, modelUsage: {} })
+    const events: SessionEvent[] = []
+    const q = Object.assign(
+      (async function* (): AsyncGenerator<SDKMessage> {
+        yield msg({ type: 'system', subtype: 'status', status: 'requesting', parent_tool_use_id: null })
+        yield start('m1', { input_tokens: 10 })
+        yield result()
+        // a subagent request while idle must not start a turn
+        yield msg({ type: 'system', subtype: 'status', status: 'requesting', parent_tool_use_id: 'toolu_x' })
+        yield msg({ type: 'system', subtype: 'task_notification', task_id: 't1', status: 'completed', tool_use_id: 'toolu_x', summary: 's' })
+        // the CLI reacts on its own
+        yield msg({ type: 'system', subtype: 'status', status: 'requesting', parent_tool_use_id: null })
+        yield start('m2', { input_tokens: 20 })
+        yield msgDelta(7)
+        yield result()
+      })(),
+      { interrupt: async () => {}, close: () => {} }
+    ) as unknown as Query
+    const s = await startSdkSession({ cwd: 'C:\fixture\proj', prompt: 'hi', queryImpl: () => q, onEvent: (e) => events.push(e) })
+    await s.done
+    const seq = events.filter((e) => e.t === 'status' || e.t === 'result' || e.t === 'task_ended').map((e) => (e.t === 'status' ? `status:${e.state}` : e.t))
+    expect(seq).toEqual(['status:running', 'result', 'status:idle', 'task_ended', 'status:running', 'result', 'status:idle'])
+    // the second turn produced live usage again (accumulator was reset)
+    const live = events.filter((e) => e.t === 'usage_live')
+    expect(live.length).toBeGreaterThanOrEqual(2)
+  })
+
   it('emits session_closed after a crash (status error) but not after an is_error result', async () => {
     const run = async (gen: () => AsyncGenerator<SDKMessage>): Promise<SessionEvent[]> => {
       const events: SessionEvent[] = []

@@ -355,6 +355,12 @@ function sumModelUsage(modelUsage: unknown): (Usage & { costUsd: number; thinkin
 }
 
 /** Translate one SDK message into zero or more normalized events. Exported for tests/spike. */
+/** `system/status requesting` on the main thread = a new API request is starting. */
+function isMainRequestStart(m: SDKMessage): boolean {
+  const x = m as { type?: string; subtype?: string; status?: string; parent_tool_use_id?: string | null }
+  return x.type === 'system' && x.subtype === 'status' && x.status === 'requesting' && !x.parent_tool_use_id
+}
+
 export function mapMessage(m: SDKMessage, state: MapState): SessionEvent[] {
   const out: SessionEvent[] = []
   switch (m.type) {
@@ -588,6 +594,14 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
     try {
       for await (const m of q) {
         opts.onRaw?.(m)
+        // A turn the CLI starts on its own (a background task finished and Claude reacts to it) has no
+        // send(): the first main-thread API request after a result is its start. Without this the UI stays
+        // "Idle" while the reply streams and the usage accumulator is still stopped from the last turn.
+        if (!running && isMainRequestStart(m)) {
+          running = true
+          acc.reset()
+          opts.onEvent({ t: 'status', state: 'running' })
+        }
         if (m.type === 'result') acc.finish()
         for (const e of mapMessage(m, state)) {
           // An interrupted turn ends with an error-subtype result; present it as idle, not error.
