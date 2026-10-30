@@ -29,3 +29,11 @@ npm run spike                           # headless live SDK check, spends API bu
 
 - Sandbox for the skills / commands / agents / hooks editors: `CLAUDE_CONFIG_DIR=D:\claude-tmp\p3-cfg npx electron . --user-data-dir=D:\claude-tmp\p3-ud --remote-debugging-port=9444`. Deleted items go to `<userData>\trash` (the delete dialog shows the path). Never start a chat in a sandbox that has a saved hook; hooks are real code (ccwraper itself never runs them).
 - `npm run smoke` also visits Skills, Commands, Agents, Hooks (scopes and Effective view) and the lazy JSON editor. `CCWRAP_SMOKE_LIVE=1 npm run smoke` adds one cheap haiku subagent turn (needs the login in the real config, costs about $0.02). Findings: `docs/P3-FINDINGS.md`.
+
+## Packaging (P4)
+
+- `npm run dist:dir` builds the unpacked app to `dist\win-unpacked\ccwraper.exe`; `npm run dist:win` also builds the NSIS installer `dist\ccwraper Setup <version>.exe` (per-user, no admin, user data survives an uninstall). Both pass `--publish never`; `dist\` is git-ignored. Config: `electron-builder.yml`.
+- The installer is unsigned (SmartScreen will warn) and there is no auto-update yet. Never run the installer on a dev machine you care about; test the unpacked build instead.
+- `node-pty` and the SDK's `claude.exe` are `asarUnpack`ed; `paths.ts` maps `app.asar` to `app.asar.unpacked` so the bundled CLI always spawns from disk. `npm run icon` regenerates `build\icon.png` (runs under Electron).
+- `npx tsx scripts/check-main-deps.ts` (after `npm run build`) asserts the main bundle only requires declared dependencies or Node builtins.
+- `npx tsx scripts/pkg-smoke.ts` launches the unpacked app (sandbox `CLAUDE_CONFIG_DIR`, `--user-data-dir` under `D:\claude-tmp`) and checks fonts and CSP from `file://`, `app.info`, pwsh and Git Bash with `OpenConsole.exe` running from `app.asar.unpacked`, no DevTools or reload shortcuts, and single instance. `CCWRAP_PKG_LIVE=1` instead runs one haiku turn against the real config to prove the bundled `claude.exe` spawns from `app.asar.unpacked` (about $0.01).
