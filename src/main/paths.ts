@@ -38,12 +38,34 @@ function readJsonVersion(file: string): string | undefined {
   }
 }
 
+const ASAR_SEG = /([\\/])app\.asar(?=[\\/]|$)/i
+
+/** True when `p` points inside an `app.asar` archive (spawning or loading native files from there fails). */
+export function isInsideAsar(p: string): boolean {
+  return ASAR_SEG.test(p)
+}
+
+/** Maps `<sep>app.asar<sep>` to `<sep>app.asar.unpacked<sep>` (electron-builder `asarUnpack` target). Other paths are unchanged. */
+export function toUnpackedPath(p: string): string {
+  return p.replace(ASAR_SEG, '$1app.asar.unpacked')
+}
+
+/**
+ * Directories to start the node_modules walk from. Normally cwd then this module's dir; inside an asar only the
+ * module's dir, so a packaged app launched from a folder with its own node_modules never loads a foreign SDK.
+ */
+export function sdkSearchStarts(cwd: string | undefined, moduleDir: string | undefined): string[] {
+  if (moduleDir && isInsideAsar(moduleDir)) return [moduleDir]
+  return [cwd, moduleDir].filter((x): x is string => !!x)
+}
+
+function searchStarts(): string[] {
+  return sdkSearchStarts(process.cwd(), typeof __dirname === 'string' ? __dirname : undefined)
+}
+
 /** Versions of the installed SDK package and its bundled CLI (manifest.json), read via fs (no SDK import). */
 export function readSdkVersions(): { cli?: string; sdk?: string } {
-  const starts = [process.cwd(), typeof __dirname === 'string' ? __dirname : undefined].filter(
-    (x): x is string => !!x
-  )
-  for (const start of starts) {
+  for (const start of searchStarts()) {
     let dir = start
     for (;;) {
       const base = join(dir, 'node_modules', '@anthropic-ai', 'claude-agent-sdk')
@@ -111,6 +133,8 @@ export function resolveClaudeBinary(): ClaudeBinaryInfo {
     source: 'bundled',
     ...(note ? { note } : {})
   })
+  // Test-only override: the packaged smoke uses it to prove the bundled (unpacked) binary spawns.
+  if (process.env['CCWRAP_CLAUDE_SOURCE'] === 'bundled') return (cached = bundled('forced by CCWRAP_CLAUDE_SOURCE=bundled'))
   const fromEnv = process.env['CCWRAP_CLAUDE_PATH']
   if (fromEnv && existsSync(fromEnv)) {
     const version = probeVersion(fromEnv)
@@ -128,9 +152,18 @@ export function resolveClaudeBinary(): ClaudeBinaryInfo {
   return (cached = bundled(note))
 }
 
-/** Path for the SDK's pathToClaudeCodeExecutable; undefined => SDK bundled binary. */
+/** The chosen user/env binary, else the bundled one mapped out of any asar. undefined only when nothing is installed. */
+export function pickClaudeExecutable(info: ClaudeBinaryInfo, bundled: string | undefined): string | undefined {
+  if (info.path) return info.path
+  return bundled ? toUnpackedPath(bundled) : undefined
+}
+
+/**
+ * Path for the SDK's pathToClaudeCodeExecutable. Always explicit when any binary exists, so the SDK never
+ * resolves `claude.exe` inside `app.asar` (where it cannot be spawned).
+ */
 export function resolveClaudeExecutable(): string | undefined {
-  return resolveClaudeBinary().path
+  return pickClaudeExecutable(resolveClaudeBinary(), bundledClaudePath())
 }
 
 /** Stable comparison key for a cwd: resolved, no trailing separator (except a bare root), lowercased on Windows. */
@@ -258,8 +291,7 @@ export function createConfigPaths(env: EnvLike = process.env, home: string = hom
  */
 export function bundledClaudePath(platform: NodeJS.Platform = process.platform, arch: string = process.arch): string | undefined {
   const rel = join('node_modules', '@anthropic-ai', `claude-agent-sdk-${platform}-${arch}`, platform === 'win32' ? 'claude.exe' : 'claude')
-  const starts = [process.cwd(), typeof __dirname === 'string' ? __dirname : undefined].filter((x): x is string => !!x)
-  for (const start of starts) {
+  for (const start of searchStarts()) {
     let dir = start
     for (;;) {
       const p = join(dir, rel)
@@ -270,4 +302,24 @@ export function bundledClaudePath(platform: NodeJS.Platform = process.platform, 
     }
   }
   return undefined
+}
+
+// ---- P4: userData files and transcripts ----
+
+export function prefsPath(userDataDir: string): string {
+  return join(userDataDir, 'prefs.json')
+}
+export function windowStatePath(userDataDir: string): string {
+  return join(userDataDir, 'window-state.json')
+}
+export function usageCachePath(userDataDir: string): string {
+  return join(userDataDir, 'usage-cache.json')
+}
+export function usageLedgerPath(userDataDir: string): string {
+  return join(userDataDir, 'usage-ledger.jsonl')
+}
+
+/** Root of the CLI's session transcripts: `<configDir>/projects`. */
+export function transcriptsRoot(env: EnvLike = process.env, home: string = homedir()): string {
+  return join(claudeConfigDir(env, home), 'projects')
 }

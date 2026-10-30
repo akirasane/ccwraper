@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { bundledClaudePath, resolveClaudeBinary } from '../paths'
+import { resolveClaudeExecutable } from '../paths'
 
 export interface CliResult {
   code: number
@@ -16,7 +16,7 @@ export type CliRunner = (args: string[], opts: CliOptions) => Promise<CliResult>
 
 /** `.exe` / bundled binary only: `.cmd` shims are never used (argument quoting). */
 export function resolveCliBinary(): string | undefined {
-  return resolveClaudeBinary().path ?? bundledClaudePath()
+  return resolveClaudeExecutable()
 }
 
 /** Run `claude <args>` via execFile (never a shell). Resolves with the exit code, never rejects on non-zero exit. */
