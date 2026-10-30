@@ -93,6 +93,7 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
             rows={2}
             disabled={disabled}
             aria-label="Message"
+            style={{ boxShadow: 'none' }}
             placeholder={disabled ? (disabledReason ?? 'Unavailable') : 'Ask Claude to work on this project...'}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {

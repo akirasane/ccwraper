@@ -195,6 +195,12 @@ describe('Composer', () => {
     expect(api.session.setPermissionMode).toHaveBeenLastCalledWith('L1', 'plan')
   })
 
+  it('the textarea has no own focus ring (the composer card shows the focus-within ring)', () => {
+    useChatStore.getState().createConv(target)
+    render(<Composer convId="c1" />)
+    expect(screen.getByLabelText('Message').style.boxShadow).toBe('none')
+  })
+
   it('is disabled when asked (missing cwd)', () => {
     useChatStore.getState().createConv(target)
     render(<Composer convId="c1" disabled disabledReason="gone" />)
