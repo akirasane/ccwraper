@@ -131,4 +131,6 @@ export interface AppInfo {
   claudeSource: 'env' | 'user' | 'bundled'
   sdkVersion: string
   platform: string
+  /** Where deleted skills / commands / agents are moved (under userData). */
+  trashDir?: string
 }

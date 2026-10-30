@@ -6,6 +6,7 @@ import { keyRange } from '@shared/frontmatter'
 import { CodeEditor, type CodeEditorDiagnostic } from '@/components/editor'
 import { Button, Spinner, toast } from '@/components/ui'
 import { cn } from '@/lib/cn'
+import { useAppInfo } from '@/features/sessions/queries'
 import { DeleteItemDialog, RenameItemDialog } from './ItemDialogs'
 import { ItemForm } from './ItemForm'
 import { specFor } from './item-specs'
@@ -84,6 +85,7 @@ export function ItemEditor({
   const buf = useItemBuffer(item.ref, readOnly)
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const appInfo = useAppInfo().data
 
   const issues = useMemo(
     () => spec.validate(buf.doc, { fileName: item.name, knownTools, models }),
@@ -228,7 +230,14 @@ export function ItemEditor({
         />
       )}
       {!readOnly && deleting && (
-        <DeleteItemDialog item={item} baseHash={baseHash} open onOpenChange={setDeleting} onDeleted={onDeleted} />
+        <DeleteItemDialog
+          item={item}
+          baseHash={baseHash}
+          trashDir={appInfo?.trashDir}
+          open
+          onOpenChange={setDeleting}
+          onDeleted={onDeleted}
+        />
       )}
     </div>
   )
