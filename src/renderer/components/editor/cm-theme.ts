@@ -54,7 +54,24 @@ export const ccwrapEditorTheme = EditorView.theme(
       { outline: '2px solid var(--accent-text)', outlineOffset: '1px' },
     '.cm-panel.cm-search': { padding: '6px 8px', color: 'var(--text-secondary)' },
     '.cm-panel.cm-search label': { color: 'var(--text-secondary)' },
-    '.cm-panel.cm-search input[type=checkbox]': { accentColor: 'var(--accent-text)' },
+    '.cm-panel.cm-search input[type=checkbox]': {
+      appearance: 'none',
+      width: '14px',
+      height: '14px',
+      margin: '0 4px 0 0',
+      verticalAlign: 'middle',
+      cursor: 'pointer',
+      backgroundColor: 'var(--bg-1)',
+      border: '1px solid var(--border-strong)',
+      borderRadius: 'var(--radius-xs)'
+    },
+    '.cm-panel.cm-search input[type=checkbox]:checked': {
+      backgroundColor: 'var(--accent-solid-from)',
+      borderColor: 'transparent',
+      backgroundImage:
+        'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath d=%27M3.5 8.5l3 3 6-7%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E")',
+      backgroundSize: '100% 100%'
+    },
     '.cm-panel.cm-search [name=close]': {
       backgroundColor: 'transparent',
       border: 'none',

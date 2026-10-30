@@ -32,6 +32,9 @@ body {
   background: var(--border-strong);
   border-radius: var(--radius-full);
 }
+::-webkit-scrollbar-button {
+  display: none;
+}
 ::-webkit-scrollbar-track {
   background: transparent;
 }

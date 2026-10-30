@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import {
   Button,
+  Checkbox,
   Chip,
   Dialog,
   DialogContent,
@@ -207,5 +208,24 @@ describe('Dialog', () => {
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument()
     await user.keyboard('{Escape}')
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('Checkbox', () => {
+  it('toggles by click and Space, and disabled does not', async () => {
+    const onCheckedChange = vi.fn()
+    const user = userEvent.setup()
+    const { rerender } = render(<Checkbox aria-label="ack" onCheckedChange={onCheckedChange} />)
+    const cb = screen.getByRole('checkbox', { name: 'ack' })
+    expect(cb).toHaveAttribute('aria-checked', 'false')
+    await user.click(cb)
+    expect(onCheckedChange).toHaveBeenLastCalledWith(true)
+    cb.focus()
+    await user.keyboard(' ')
+    expect(onCheckedChange).toHaveBeenLastCalledWith(false)
+    onCheckedChange.mockClear()
+    rerender(<Checkbox disabled aria-label="ack" onCheckedChange={onCheckedChange} />)
+    await user.click(screen.getByRole('checkbox'))
+    expect(onCheckedChange).not.toHaveBeenCalled()
   })
 })

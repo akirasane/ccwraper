@@ -4,14 +4,14 @@ import { Toaster as Sonner, toast } from 'sonner'
 
 export { toast }
 
-/** Themed sonner: glass-strong, 340 wide, bottom-right 16/40, gap 8, max 3 visible, 4s auto-dismiss. */
+/** Themed sonner: glass-strong, 340 wide, bottom-right 16/88 (clears status bar + footer), gap 8, max 3 visible, 4s auto-dismiss. */
 export function Toaster(): React.JSX.Element {
   return (
     <Sonner
       theme="dark"
       position="bottom-right"
-      offset={{ right: 16, bottom: 40 }}
-      mobileOffset={{ right: 16, bottom: 40 }}
+      offset={{ right: 16, bottom: 88 }}
+      mobileOffset={{ right: 16, bottom: 88 }}
       gap={8}
       visibleToasts={3}
       duration={4000}

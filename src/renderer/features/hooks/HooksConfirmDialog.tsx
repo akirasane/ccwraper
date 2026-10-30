@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui'
+import { Button, Checkbox, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui'
 import type { ChangedExecutable } from './model/hooks-model'
 
 const KIND_LABEL: Record<ChangedExecutable['kind'], string> = { command: 'Command', http: 'URL', mcp_tool: 'MCP tool' }
@@ -57,7 +57,7 @@ export function HooksConfirmDialog({
         </ul>
         {needsAck && (
           <label className="mt-3 flex items-start gap-2 text-base text-fg-2">
-            <input type="checkbox" className="mt-1" checked={ack} onChange={(e) => setAck(e.target.checked)} />
+            <Checkbox className="mt-0.5" checked={ack} onCheckedChange={(v) => setAck(v === true)} />
             <span>
               This file is usually committed to the repository. These hooks will run for everyone who opens the repo. I understand.
             </span>
