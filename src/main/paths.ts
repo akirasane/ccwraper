@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, join, parse, resolve } from 'node:path'
+import { dirname, isAbsolute, join, parse, relative, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 
 export type ClaudeSource = 'env' | 'user' | 'bundled'
@@ -193,12 +193,53 @@ export function memoryFilePath(
   return join(root, 'CLAUDE.local.md')
 }
 
+// ---- P3: skills / commands / agents ----
+
+export type ItemKindName = 'skill' | 'command' | 'agent'
+
+const ITEM_DIR: Record<ItemKindName, string> = { skill: 'skills', command: 'commands', agent: 'agents' }
+
+/** Root folder of one item kind: user `<configDir>/<plural>`, project `<cwd>/.claude/<plural>`. */
+export function itemsRoot(
+  kind: ItemKindName,
+  scope: 'user' | 'project',
+  cwd?: string,
+  env: EnvLike = process.env,
+  home: string = homedir()
+): string {
+  if (scope === 'user') return join(claudeConfigDir(env, home), ITEM_DIR[kind])
+  return join(needCwd(cwd, `project ${kind}s`), '.claude', ITEM_DIR[kind])
+}
+
+/**
+ * File of one item under `root`: skill `<root>/<name>/SKILL.md`, command `<root>/<a>[/<b>].md`, agent `<root>/<name>.md`.
+ * Both slash forms are accepted in `name`. Throws when the name is empty, absolute, has a `..`/empty segment, or the
+ * resolved path would leave `root`.
+ */
+export function itemFilePath(kind: ItemKindName, root: string, name: string): string {
+  if (!name || /^[\\/]/.test(name) || /^[A-Za-z]:/.test(name) || name.includes('\0')) throw new Error(`Invalid item name: ${name}`)
+  const segs = name.split(/[\\/]/)
+  if (segs.some((s) => s === '' || s === '.' || s === '..')) throw new Error(`Invalid item name: ${name}`)
+  if (kind !== 'command' && segs.length !== 1) throw new Error(`Invalid item name: ${name}`)
+  const file =
+    kind === 'skill' ? join(root, ...segs, 'SKILL.md') : join(root, ...segs.slice(0, -1), `${segs[segs.length - 1]}.md`)
+  const rel = relative(resolve(root), resolve(file))
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error(`Item path escapes its root: ${name}`)
+  return file
+}
+
+/** Where deleted items are moved: `<userData>/trash`. */
+export function trashDir(userDataDir: string): string {
+  return join(userDataDir, 'trash')
+}
+
 /** Injectable bundle of the above; services take this instead of reading env/os.homedir() themselves. */
 export interface ConfigPaths {
   configDir: string
   globalConfigPath: string
   settingsFile(scope: 'user' | 'project' | 'local', cwd?: string): string
   memoryFile(scope: 'user' | 'project' | 'projectDotClaude' | 'local', cwd?: string): string
+  itemsRoot(kind: ItemKindName, scope: 'user' | 'project', cwd?: string): string
 }
 
 export function createConfigPaths(env: EnvLike = process.env, home: string = homedir()): ConfigPaths {
@@ -206,7 +247,8 @@ export function createConfigPaths(env: EnvLike = process.env, home: string = hom
     configDir: claudeConfigDir(env, home),
     globalConfigPath: claudeGlobalConfigPath(env, home),
     settingsFile: (scope, cwd) => settingsFilePath(scope, cwd, env, home),
-    memoryFile: (scope, cwd) => memoryFilePath(scope, cwd, env, home)
+    memoryFile: (scope, cwd) => memoryFilePath(scope, cwd, env, home),
+    itemsRoot: (kind, scope, cwd) => itemsRoot(kind, scope, cwd, env, home)
   }
 }
 

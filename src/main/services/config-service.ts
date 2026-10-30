@@ -39,6 +39,8 @@ export class ConfigService {
 
   /** Resolve a typed ref to a path. Throws on a missing cwd (callers map that to bad_ref). */
   resolvePath(ref: ConfigFileRef): string {
+    // WP0 stub: item refs (skill / command / agent) are resolved by WP4. Write() maps this throw to bad_ref.
+    if (ref.kind !== 'settings' && ref.kind !== 'memory') throw new Error('Item refs are not supported yet')
     return ref.kind === 'settings' ? this.paths.settingsFile(ref.scope, ref.cwd) : this.paths.memoryFile(ref.scope, ref.cwd)
   }
 

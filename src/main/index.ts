@@ -4,6 +4,7 @@ import { IpcChannels } from '../shared/ipc'
 import type { SessionEventPayload } from '../shared/ipc'
 import { registerIpc } from './ipc'
 import type { Disposer } from './ipc/dispose'
+import { PluginRegistry } from './services/plugin-registry'
 import { SessionManager } from './services/session-manager'
 
 let win: BrowserWindow | null = null
@@ -18,10 +19,14 @@ function isHttpUrl(url: string): boolean {
   }
 }
 
-const manager = new SessionManager((localId, event) => {
-  const payload: SessionEventPayload = { localId, event }
-  win?.webContents.send(IpcChannels.sessionEvent, payload)
-})
+const pluginRegistry = new PluginRegistry()
+const manager = new SessionManager(
+  (localId, event) => {
+    const payload: SessionEventPayload = { localId, event }
+    win?.webContents.send(IpcChannels.sessionEvent, payload)
+  },
+  { registry: pluginRegistry }
+)
 
 function createWindow(): void {
   win = new BrowserWindow({
@@ -62,6 +67,7 @@ function createWindow(): void {
 void app.whenReady().then(() => {
   disposeIpc = registerIpc({
     manager,
+    registry: pluginRegistry,
     send: (channel, payload) => {
       if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
     }

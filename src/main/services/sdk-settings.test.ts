@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { HOOK_EVENTS } from '../../shared/hook-events'
 import { resolveSettingsView } from './sdk-settings'
 import type { SettingsResolver } from './sdk-settings'
 
@@ -63,6 +64,13 @@ describe('resolveSettingsView with the real SDK (sandboxed CLAUDE_CONFIG_DIR + t
       await rm(proj, { recursive: true, force: true })
     }
   }, 20000)
+})
+
+describe('SDK boundary: hook events', () => {
+  it('src/shared/hook-events.ts equals the SDK runtime HOOK_EVENTS (bump the copy when the SDK changes)', async () => {
+    const sdk = await import('@anthropic-ai/claude-agent-sdk')
+    expect([...HOOK_EVENTS]).toEqual([...sdk.HOOK_EVENTS])
+  })
 })
 
 describe('resolveSettingsView', () => {

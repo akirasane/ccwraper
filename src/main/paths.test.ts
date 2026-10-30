@@ -8,6 +8,9 @@ import {
   claudeGlobalConfigPath,
   compareVersions,
   createConfigPaths,
+  itemFilePath,
+  itemsRoot,
+  trashDir,
   managedSettingsPath,
   memoryFilePath,
   parseVersion,
@@ -90,5 +93,39 @@ describe('config locations', () => {
     expect(p).toBeDefined()
     expect(existsSync(p!)).toBe(true)
     expect(bundledClaudePath('linux', 'nope')).toBeUndefined()
+  })
+})
+
+describe('item paths (P3)', () => {
+  const home = join(tmpdir(), 'ccwrap-fixture-home')
+  const cfg = join(tmpdir(), 'ccwrap-fixture-cfg')
+  const proj = join(tmpdir(), 'ccwrap-fixture-proj')
+
+  it('roots per kind and scope', () => {
+    expect(itemsRoot('skill', 'user', undefined, {}, home)).toBe(join(home, '.claude', 'skills'))
+    expect(itemsRoot('command', 'user', undefined, { CLAUDE_CONFIG_DIR: cfg }, home)).toBe(join(resolve(cfg), 'commands'))
+    expect(itemsRoot('agent', 'project', proj, {}, home)).toBe(join(proj, '.claude', 'agents'))
+    expect(() => itemsRoot('skill', 'project', undefined, {}, home)).toThrow(/cwd/)
+    expect(createConfigPaths({ CLAUDE_CONFIG_DIR: cfg }, home).itemsRoot('agent', 'user')).toBe(join(resolve(cfg), 'agents'))
+  })
+
+  it('file layout: skill dir, namespaced command, flat agent', () => {
+    const root = join(proj, '.claude')
+    expect(itemFilePath('skill', root, 'my-skill')).toBe(join(root, 'my-skill', 'SKILL.md'))
+    expect(itemFilePath('command', root, 'a/b')).toBe(join(root, 'a', 'b.md'))
+    expect(itemFilePath('command', root, 'a\\b\\c')).toBe(join(root, 'a', 'b', 'c.md'))
+    expect(itemFilePath('agent', root, 'reviewer')).toBe(join(root, 'reviewer.md'))
+  })
+
+  it('rejects traversal, absolute names and extra segments (both slash forms)', () => {
+    const root = join(proj, '.claude', 'skills')
+    for (const bad of ['..', '../x', '..\\x', 'a/../../b', 'a\\..\\..\\b', '/abs', '\\abs', 'C:\\x', 'C:/x', '', 'a//b', './x', 'a/.'])
+      expect(() => itemFilePath('command', root, bad), bad).toThrow()
+    expect(() => itemFilePath('skill', root, 'a/b')).toThrow()
+    expect(() => itemFilePath('agent', root, 'a/b')).toThrow()
+  })
+
+  it('trashDir is under userData', () => {
+    expect(trashDir('C:\\fixture\\ud')).toBe(join('C:\\fixture\\ud', 'trash'))
   })
 })

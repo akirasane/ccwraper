@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises'
 import type { ModelOption } from '../../shared/config'
 import type { SessionEvent } from '../../shared/events'
 import type { PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
+import type { PluginRegistry } from './plugin-registry'
 import { startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
 
 export const MAX_SESSIONS = 5
@@ -10,6 +11,8 @@ export const MAX_SESSIONS = 5
 export interface SessionManagerDeps {
   /** Test seam; defaults to the real SDK adapter. */
   startSession?: typeof startSdkSession
+  /** Fed from `init.plugins` by WP1; WP0 only wires the constructor arg. */
+  registry?: PluginRegistry
 }
 
 async function assertDirectory(cwd: string): Promise<void> {

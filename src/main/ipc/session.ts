@@ -4,7 +4,8 @@ import {
   PermissionModeSchema,
   PermissionReplySchema,
   SessionSendSchema,
-  SessionStartSchema
+  SessionStartSchema,
+  SessionStopTaskSchema
 } from '../../shared/ipc'
 import type { ModelOption } from '../../shared/config'
 import type { SessionManager } from '../services/session-manager'
@@ -31,6 +32,10 @@ export function registerSessionIpc(manager: SessionManager): Disposer {
   ipcMain.handle(IpcChannels.sessionSupportedModels, (_e, id: unknown): Promise<ModelOption[]> =>
     manager.supportedModels(String(id))
   )
+  // WP0 STUB: WP1 wires this to manager.stopTask.
+  ipcMain.handle(IpcChannels.sessionStopTask, async (_e, raw: unknown): Promise<void> => {
+    SessionStopTaskSchema.parse(raw)
+  })
   ipcMain.handle(IpcChannels.pickDirectory, async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return r.canceled ? null : (r.filePaths[0] ?? null)
@@ -44,6 +49,7 @@ export function registerSessionIpc(manager: SessionManager): Disposer {
     IpcChannels.sessionSetPermissionMode,
     IpcChannels.sessionPermissionReply,
     IpcChannels.sessionSupportedModels,
+    IpcChannels.sessionStopTask,
     IpcChannels.pickDirectory
   )
 }

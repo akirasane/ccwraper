@@ -6,6 +6,7 @@ import { createConfigPaths } from '../paths'
 import type { ConfigPaths } from '../paths'
 import { ConfigService } from '../services/config-service'
 import { ConfigWatcher } from '../services/config-watcher'
+import type { PluginRegistry } from '../services/plugin-registry'
 import { resolveSettingsView } from '../services/sdk-settings'
 import type { Disposer } from './dispose'
 import { removeHandlers } from './dispose'
@@ -15,6 +16,8 @@ export interface ConfigIpcDeps {
   /** Test seams; defaults use the real config locations and userData/backups. */
   paths?: ConfigPaths
   backupDir?: string
+  /** Plugin dirs reported by session init (WP4 uses it to resolve plugin item refs). */
+  registry?: PluginRegistry
 }
 
 export function registerConfigIpc(deps: ConfigIpcDeps): Disposer {
