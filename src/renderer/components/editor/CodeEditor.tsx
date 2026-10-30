@@ -1,4 +1,5 @@
-// PLACEHOLDER (WP0): a <textarea> with the frozen props. WP5 replaces it with CodeMirror 6.
+import { lazy, Suspense } from 'react'
+
 export interface CodeEditorDiagnostic {
   from: number
   to: number
@@ -17,30 +18,27 @@ export interface CodeEditorProps {
   onSave?: () => void
 }
 
-export function CodeEditor({ value, onChange, ariaLabel, readOnly, diagnostics, onSave }: CodeEditorProps): React.JSX.Element {
+// CodeMirror lives in its own chunk (P2 D3); importing this module never pulls it into the main bundle.
+const Impl = lazy(() => import('./CodeEditorImpl'))
+
+export function CodeEditor(props: CodeEditorProps): React.JSX.Element {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <textarea
-        aria-label={ariaLabel}
-        className="min-h-0 flex-1 resize-none rounded-sm border border-border bg-bg-1 p-2 font-mono text-sm text-fg"
-        spellCheck={false}
-        readOnly={readOnly}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (onSave && e.ctrlKey && e.key.toLowerCase() === 's') {
-            e.preventDefault()
-            onSave()
-          }
-        }}
-      />
-      {diagnostics && diagnostics.length > 0 && (
-        <ul className="mt-1 text-xs text-fg-3">
-          {diagnostics.map((d, i) => (
-            <li key={i}>{d.message}</li>
-          ))}
-        </ul>
-      )}
+      <Suspense
+        fallback={
+          <div
+            role="status"
+            aria-busy="true"
+            className="flex-1 rounded-sm border border-border bg-bg-1 p-2 text-xs text-fg-3"
+          >
+            Loading editor...
+          </div>
+        }
+      >
+        <Impl {...props} />
+      </Suspense>
     </div>
   )
 }
+
+export default CodeEditor
