@@ -18,6 +18,6 @@ export default defineConfig({
     root: resolve(__dirname, 'src/renderer'),
     resolve: { alias: { '@shared': shared, '@': resolve(__dirname, 'src/renderer') } },
     plugins: [react(), tailwindcss()],
-    build: { rollupOptions: { input: { index: resolve(__dirname, 'src/renderer/index.html') } } }
+    build: { minify: 'esbuild', rollupOptions: { input: { index: resolve(__dirname, 'src/renderer/index.html') } } }
   }
 })
