@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import type { ModelOption } from '../../shared/config'
-import type { SessionEvent } from '../../shared/events'
+import type { SessionEvent, SessionStatus } from '../../shared/events'
 import type { PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
 import type { PluginRegistry } from './plugin-registry'
 import { startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
@@ -22,9 +22,16 @@ async function assertDirectory(cwd: string): Promise<void> {
 
 interface LiveSession {
   localId: string
+  cwd: string
   adapter: AdapterSession
   sdkSessionId?: string
+  /** Last `status` event; undefined until the first one. */
+  status?: SessionStatus
+  /** Running non-hidden task ids (from task_started / task_ended / session_closed). */
+  tasks: Set<string>
 }
+
+const TASK_TERMINAL = new Set(['completed', 'failed', 'stopped', 'killed'])
 
 export class SessionManager {
   private sessions = new Map<string, LiveSession>()
@@ -40,7 +47,7 @@ export class SessionManager {
     await assertDirectory(args.cwd)
     if (this.sessions.size >= MAX_SESSIONS) throw new Error(`Session cap reached (${MAX_SESSIONS})`)
     const localId = randomUUID()
-    const live = { localId } as LiveSession
+    const live = { localId, cwd: args.cwd, tasks: new Set<string>() } as LiveSession
     // Reserve slot before the async start so the cap holds under concurrent calls.
     this.sessions.set(localId, live)
     try {
@@ -58,6 +65,7 @@ export class SessionManager {
             live.sdkSessionId = e.sessionId
             if (e.plugins) this.deps.registry?.update(e.plugins)
           }
+          this.track(live, e)
           this.emit(localId, e)
         }
       })
@@ -69,6 +77,46 @@ export class SessionManager {
       this.sessions.delete(localId)
     })
     return { localId }
+  }
+
+  /** Keeps the facts busyCount() needs; runs before the event is emitted. */
+  private track(live: LiveSession, e: SessionEvent): void {
+    switch (e.t) {
+      case 'status':
+        live.status = e.state
+        break
+      case 'task_started':
+        if (!e.hidden) live.tasks.add(e.taskId)
+        break
+      case 'task_updated':
+        if (e.status && TASK_TERMINAL.has(e.status)) live.tasks.delete(e.taskId)
+        break
+      case 'task_ended':
+        live.tasks.delete(e.taskId)
+        break
+      case 'session_closed':
+        live.tasks.clear()
+        live.status = 'idle'
+        break
+      default:
+        break
+    }
+  }
+
+  /** cwd and SDK session id of a live session (undefined for unknown or finished ones). */
+  info(localId: string): { cwd: string; sdkSessionId?: string } | undefined {
+    const s = this.sessions.get(localId)
+    if (!s) return undefined
+    return { cwd: s.cwd, ...(s.sdkSessionId ? { sdkSessionId: s.sdkSessionId } : {}) }
+  }
+
+  /** Sessions that are working: a running turn, a pending permission, or a running non-hidden background task. */
+  busyCount(): number {
+    let n = 0
+    for (const s of this.sessions.values()) {
+      if (s.status === 'running' || s.status === 'waiting_permission' || s.tasks.size > 0) n++
+    }
+    return n
   }
 
   private get(localId: string): LiveSession {
