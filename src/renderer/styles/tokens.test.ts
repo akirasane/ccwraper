@@ -13,6 +13,23 @@ describe('design tokens', () => {
     expect(copy.equals(source)).toBe(true)
   })
 
+  it('font stacks name the families that fontsource actually registers', () => {
+    const tokens = readFileSync(join(rendererDir, 'styles/tokens.css'), 'utf8')
+    const family = (pkg: string): string => {
+      const css = readFileSync(join(root, 'node_modules/@fontsource-variable', pkg, 'index.css'), 'utf8')
+      const m = /font-family:\s*['"]([^'"]+)['"]/.exec(css)
+      expect(m).not.toBeNull()
+      return m![1]!
+    }
+    const stack = (name: string): string => new RegExp(`${name}:\\s*([^;]+);`).exec(tokens)![1]!
+    const sans = family('geist')
+    const mono = family('geist-mono')
+    expect(sans).toBe('Geist Variable')
+    expect(mono).toBe('Geist Mono Variable')
+    expect(stack('--font-sans').startsWith(`"${sans}"`)).toBe(true)
+    expect(stack('--font-mono').startsWith(`"${mono}"`)).toBe(true)
+  })
+
   it('theme.css maps every color token it references to a defined token', () => {
     const tokens = readFileSync(join(rendererDir, 'styles/tokens.css'), 'utf8')
     const theme = readFileSync(join(rendererDir, 'styles/theme.css'), 'utf8')
@@ -42,7 +59,11 @@ function walk(dir: string, out: string[] = []): string[] {
 describe('no hex literals in components', () => {
   it('components/** and features/** contain no #rgb / #rrggbb(aa) literals', () => {
     const files = [...walk(join(rendererDir, 'components')), ...walk(join(rendererDir, 'features'))].filter(
-      (f) => /\.(tsx?|css)$/.test(f) && !/\.test\.tsx?$/.test(f)
+      (f) =>
+        /\.(tsx?|css)$/.test(f) &&
+        !/\.test\.tsx?$/.test(f) &&
+        // xterm needs literal colors; the one allowlisted file (P2 D10).
+        !f.replaceAll('\\', '/').endsWith('features/terminal/theme.ts')
     )
     const hits: string[] = []
     for (const f of files) {

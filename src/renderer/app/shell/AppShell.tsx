@@ -1,15 +1,25 @@
 import { QueryClientProvider } from '@tanstack/react-query'
-import { useEffect, useMemo } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { ChatView } from '@/features/chat/ChatView'
 import type { ChatTarget } from '@/features/chat/model/types'
+import { useFsChangedInvalidation } from '@/lib/config-queries'
 import { initIpcBridge } from '@/lib/ipc-bridge'
 import { queryClient } from '@/lib/query-client'
+import { setTerminalOpener } from '@/lib/terminal-bus'
 import { useChatStore } from '@/stores/chat-store'
 import { cwdKey, useWorkspaceStore } from '@/stores/workspace-store'
 import { LeftRail } from './LeftRail'
 import { useProjectList } from './ProjectPicker'
 import { StatusBar } from './StatusBar'
 import { TitleBar } from './TitleBar'
+
+// Lazy so chat startup does not pay for the config pages or the terminal (xterm, CodeMirror).
+const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const McpPage = lazy(() => import('@/features/mcp/McpPage').then((m) => ({ default: m.McpPage })))
+const MemoryPage = lazy(() => import('@/features/memory/MemoryPage').then((m) => ({ default: m.MemoryPage })))
+const TerminalPanel = lazy(() =>
+  import('@/features/terminal/TerminalPanel').then((m) => ({ default: m.TerminalPanel }))
+)
 
 function Notice({ title, body }: { title: string; body: string }): React.JSX.Element {
   return (
@@ -24,6 +34,14 @@ function Shell(): React.JSX.Element {
   const cwd = useWorkspaceStore((s) => s.cwd)
   const activeConvId = useWorkspaceStore((s) => s.activeConvId)
   const loading = useWorkspaceStore((s) => s.loadingSession)
+  const view = useWorkspaceStore((s) => s.view)
+  const terminalOpen = useWorkspaceStore((s) => s.terminalOpen)
+  const toggleTerminal = useWorkspaceStore((s) => s.toggleTerminal)
+  // Mount the terminal on first open and keep it mounted (hidden) afterwards so ptys and xterm survive.
+  const [terminalMounted, setTerminalMounted] = useState(false)
+  const closeTerminal = useCallback(() => {
+    if (useWorkspaceStore.getState().terminalOpen) useWorkspaceStore.getState().toggleTerminal()
+  }, [])
   const newSession = useWorkspaceStore((s) => s.newSession)
   const conv = useChatStore((s) => (activeConvId ? s.convs[activeConvId] : undefined))
   const { projects, isLoading } = useProjectList()
@@ -33,6 +51,37 @@ function Shell(): React.JSX.Element {
     if (!window.ccwrap) return
     return initIpcBridge()
   }, [])
+
+  useFsChangedInvalidation()
+
+  // Watch the active project's config files in main.
+  useEffect(() => {
+    void window.ccwrap?.config?.watchProject(cwd ?? null)?.catch(() => {})
+  }, [cwd])
+
+  useEffect(() => {
+    if (terminalOpen) setTerminalMounted(true)
+  }, [terminalOpen])
+
+  // "Run in terminal" (chat -> terminal bus) must open the panel even if it was closed.
+  useEffect(() => {
+    setTerminalOpener(() => {
+      if (!useWorkspaceStore.getState().terminalOpen) useWorkspaceStore.getState().toggleTerminal()
+    })
+    return () => setTerminalOpener(undefined)
+  }, [])
+
+  // Ctrl+` toggles the terminal.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && (e.code === 'Backquote' || e.key === '`')) {
+        e.preventDefault()
+        toggleTerminal()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [toggleTerminal])
 
   const project = cwd ? projects.find((p) => cwdKey(p.cwd) === cwdKey(cwd)) : undefined
   const missing = !!cwd && !isLoading && project?.exists === false
@@ -55,20 +104,39 @@ function Shell(): React.JSX.Element {
       <TitleBar />
       <div className="flex min-h-0 flex-1">
         <LeftRail disabled={missing} />
-        <main className="flex min-w-0 flex-1 flex-col" data-testid="chat-column">
-          {missing ? (
-            <Notice
-              title="Folder not found"
-              body={`${cwd} no longer exists, so sessions cannot be started or resumed here.`}
-            />
-          ) : !target ? (
-            <Notice title="Select a project" body="Choose a project on the left, or open a folder to start." />
-          ) : loading ? (
-            <Notice title="Loading session..." body="" />
-          ) : (
-            <ChatView key={target.convId} target={target} />
-          )}
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="chat-column">
+            {view !== 'chat' && (
+              <Suspense fallback={<Notice title="Loading..." body="" />}>
+                {view === 'settings' && <SettingsPage cwd={cwd} />}
+                {view === 'mcp' && <McpPage cwd={cwd} />}
+                {view === 'memory' && <MemoryPage cwd={cwd} />}
+              </Suspense>
+            )}
+            {/* Chat stays mounted (hidden) while another view is open so composer drafts and scroll survive. */}
+            <div className={view === 'chat' ? 'contents' : 'hidden'}>
+              {missing ? (
+                <Notice
+                  title="Folder not found"
+                  body={`${cwd} no longer exists, so sessions cannot be started or resumed here.`}
+                />
+              ) : !target ? (
+                <Notice title="Select a project" body="Choose a project on the left, or open a folder to start." />
+              ) : loading ? (
+                <Notice title="Loading session..." body="" />
+              ) : (
+                <ChatView key={target.convId} target={target} />
+              )}
+            </div>
+          </main>
+          <div data-testid="terminal-slot" className={terminalOpen ? 'shrink-0' : 'hidden'}>
+            {terminalMounted && (
+              <Suspense fallback={null}>
+                <TerminalPanel cwd={cwd} onClose={closeTerminal} />
+              </Suspense>
+            )}
+          </div>
+        </div>
       </div>
       <StatusBar />
     </div>

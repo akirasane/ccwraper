@@ -25,7 +25,14 @@ function writeLastCwd(cwd: string): void {
   }
 }
 
+/** Main-column view. 'chat' is the default; the others are the P2 config pages. */
+export type AppView = 'chat' | 'settings' | 'mcp' | 'memory'
+
 interface WorkspaceState {
+  view: AppView
+  setView: (view: AppView) => void
+  terminalOpen: boolean
+  toggleTerminal: () => void
   cwd?: string
   /** Folders added via "Open folder..." that history does not know yet. */
   extraCwds: string[]
@@ -50,6 +57,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   }
 
   return {
+    view: 'chat',
+    setView: (view) => set({ view }),
+    terminalOpen: false,
+    toggleTerminal: () => set((s) => ({ terminalOpen: !s.terminalOpen })),
     cwd: readLastCwd(),
     extraCwds: [],
     loadingSession: false,
@@ -61,6 +72,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     newSession: () => {
       const { cwd } = get()
+      set({ view: 'chat' })
       if (cwd) startDraft(cwd)
     },
 
@@ -68,7 +80,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const convId = `hist-${s.sessionId}`
       const chat = useChatStore.getState()
       writeLastCwd(s.cwd)
-      set({ cwd: s.cwd, activeConvId: convId, activeTitle: s.title, activeBranch: s.gitBranch })
+      set({ cwd: s.cwd, activeConvId: convId, activeTitle: s.title, activeBranch: s.gitBranch, view: 'chat' })
       if (chat.convs[convId]) return // already open (possibly live): just show it
       chat.createConv({ convId, cwd: s.cwd, resumeSessionId: s.sessionId })
       set({ loadingSession: true })

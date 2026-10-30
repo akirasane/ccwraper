@@ -71,8 +71,8 @@
   --noise-opacity: 0.025;
 
   /* ---------- Type ---------- */
-  --font-sans: "Geist", "Geist Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
-  --font-mono: "Geist Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --font-sans: "Geist Variable", "Geist", "Geist Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
   --text-2xs: 10px;  /* kbd, badges */
   --text-xs: 11px;   /* status bar, meta, section labels */
   --text-sm: 12px;   /* chips, mono in cards */
