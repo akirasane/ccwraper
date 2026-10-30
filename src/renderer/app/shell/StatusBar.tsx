@@ -5,6 +5,7 @@ import type { ConvState } from '@/features/chat/model/types'
 import { Tooltip } from '@/components/ui'
 import { useNow } from '@/lib/use-now'
 import { useAppInfo } from '@/features/sessions/queries'
+import { modelLabel, useModels } from '@/features/chat/ModelMenu'
 import { getCachedCtxWindow, useChatStore } from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import type { PermissionMode } from '@shared/ipc'
@@ -80,6 +81,7 @@ export function StatusBar(): React.JSX.Element {
   const localMode = useChatStore((s) => (convId ? s.modes[convId] : undefined))
   const setMode = useChatStore((s) => s.setPermissionMode)
   const app = useAppInfo().data
+  const models = useModels(conv?.localId)
 
   const st = STATE[conv?.status ?? 'idle'] ?? STATE.idle!
   const ctx = conv ? selectLiveContext(conv, getCachedCtxWindow(conv.meta.model)) : undefined
@@ -99,8 +101,8 @@ export function StatusBar(): React.JSX.Element {
       {conv?.meta.model && (
         <>
           {sep}
-          <span data-testid="status-model" className="font-mono text-fg-2">
-            {conv.meta.model}
+          <span data-testid="status-model" className="font-mono text-fg-2" title={conv.meta.model}>
+            {modelLabel(models, conv.meta.model)}
           </span>
         </>
       )}

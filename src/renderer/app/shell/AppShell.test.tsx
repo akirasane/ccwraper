@@ -141,7 +141,9 @@ describe('AppShell', () => {
     await waitFor(() => expect(screen.getByTestId('cost-meter')).toHaveTextContent('$0.7500'), { timeout: 6000 })
     expect(screen.getByTestId('cost-meter')).toHaveAttribute('data-value', '0.75')
     expect(screen.getByTestId('status-ctx')).toHaveTextContent('ctx 50%')
-    expect(screen.getByTestId('status-model')).toHaveTextContent('opus-test')
+    // display name (family match), the raw id stays in the title
+    expect(screen.getByTestId('status-model')).toHaveTextContent('Opus')
+    expect(screen.getByTestId('status-model')).toHaveAttribute('title', 'opus-test')
   })
 
   it('shows the interrupt button while running and calls interrupt', async () => {
