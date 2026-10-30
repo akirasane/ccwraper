@@ -107,9 +107,9 @@ describe('ConfigWatcher (fake chokidar)', () => {
   it('watches the fixed set, then the project set, and swaps on project change', async () => {
     const { w, fake } = await make()
     const p = paths()
-    expect([...fake.watched].sort()).toEqual([p.settingsFile('user'), p.memoryFile('user'), p.globalConfigPath].sort())
+    expect([...fake.watched].sort()).toEqual([p.settingsFile('user'), p.memoryFile('user'), p.globalConfigPath, p.configDir].sort())
     await w.setProject(proj)
-    expect(fake.watched.size).toBe(3 + 6)
+    expect(fake.watched.size).toBe(4 + 6 + 1) // + the project dir (item roots)
     for (const f of [
       join(proj, '.claude', 'settings.json'),
       join(proj, '.claude', 'settings.local.json'),
@@ -119,8 +119,9 @@ describe('ConfigWatcher (fake chokidar)', () => {
       join(proj, 'CLAUDE.local.md')
     ])
       expect(fake.watched.has(f)).toBe(true)
+    expect(fake.watched.has(proj)).toBe(true)
     await w.setProject(null)
-    expect(fake.watched.size).toBe(3)
+    expect(fake.watched.size).toBe(4)
     await w.close()
     expect(fake.closed).toBe(true)
   })
