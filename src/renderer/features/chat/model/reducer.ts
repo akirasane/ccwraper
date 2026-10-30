@@ -302,7 +302,22 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
     case 'status': {
       const next: ConvState = { ...conv, status: e.state }
       // idle after a turn = finished or interrupted; anything unfinished is dead.
-      if (e.state === 'idle') return closeTurn(endTurn(next, now, true), now)
+      if (e.state === 'idle') {
+        if (!conv.turn) {
+          // The result already closed the turn: the idle that follows must not kill background tasks.
+          // A task the user asked to stop is confirmed stopped here.
+          const tasks: Record<string, TaskView> = {}
+          let changed = false
+          for (const [id, t] of Object.entries(next.tasks)) {
+            if (t.status === 'stopping') {
+              changed = true
+              tasks[id] = { ...t, status: 'stopped', endedAt: now }
+            } else tasks[id] = t
+          }
+          return changed ? { ...next, tasks } : next
+        }
+        return closeTurn(endTurn(next, now, true), now)
+      }
       return e.state === 'running' ? startTurn(next, now) : next
     }
     case 'result': {

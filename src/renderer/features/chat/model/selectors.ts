@@ -163,3 +163,15 @@ export function selectWorkingState(c: ConvState): WorkingState | undefined {
   return value
 }
 
+
+/** Tokens spent by subagents this turn (live tasks plus tasks started this turn); the turn usage excludes them. */
+export function selectSubagentTokens(c: ConvState): number {
+  const since = (c.turn ?? c.lastTurn)?.startedAt ?? 0
+  let sum = 0
+  for (const t of Object.values(c.tasks)) {
+    if (t.ambient || t.hidden || t.totalTokens === undefined) continue
+    const live = t.status === 'running' || t.status === 'pending' || t.status === 'stopping' || t.status === 'paused'
+    if (live || t.startedAt >= since) sum += t.totalTokens
+  }
+  return sum
+}

@@ -4,6 +4,7 @@ import doubleInit from '../../../../../tests/fixtures/events/double-init.json'
 import historyReplay from '../../../../../tests/fixtures/events/history-replay.json'
 import interruptedTurn from '../../../../../tests/fixtures/events/interrupted-turn.json'
 import permissionFlow from '../../../../../tests/fixtures/events/permission-flow.json'
+import subagentTurn from '../../../../../tests/fixtures/events/subagent-turn.json'
 import textTurn from '../../../../../tests/fixtures/events/text-turn.json'
 import toolEditTurn from '../../../../../tests/fixtures/events/tool-edit-turn.json'
 
@@ -15,5 +16,6 @@ export const eventFixtures = {
   permissionFlow: as(permissionFlow),
   interruptedTurn: as(interruptedTurn),
   doubleInit: as(doubleInit),
-  historyReplay: as(historyReplay)
+  historyReplay: as(historyReplay),
+  subagentTurn: as(subagentTurn)
 } as const

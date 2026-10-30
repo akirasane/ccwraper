@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionEvent } from '@shared/events'
+import { eventFixtures as fx } from './fixtures'
 import { addUserItem, createConvState, reduce, reduceAll } from './reducer'
 import {
   selectChildItems,
   selectLiveContext,
   selectRunningTasks,
+  selectSubagentTokens,
   selectTaskForTool,
   selectTopLevelItems,
   selectTurnSummary,
@@ -24,47 +26,59 @@ const live = (ctx: number, out: number, exact: boolean): SessionEvent => ({
   apiCalls: 1
 })
 
-// Synthetic subagent turn (swap for tests/fixtures/events/subagent-turn.json when WP1 lands it).
-const subagentTurn: SessionEvent[] = [
-  { t: 'status', state: 'running' },
-  live(1000, 5, false),
-  { t: 'tool_use', toolUseId: 'ag1', name: 'Agent', input: { prompt: 'count' } },
-  { t: 'task_started', taskId: 'tk1', toolUseId: 'ag1', description: 'Count files', subagentType: 'general-purpose' },
-  { t: 'tool_use', toolUseId: 'g1', name: 'Glob', input: {}, parentToolUseId: 'ag1' },
-  { t: 'assistant_message', msgId: 'sub1', blocks: [{ type: 'text', text: 'sub' }], parentToolUseId: 'ag1' },
-  { t: 'tool_progress', toolUseId: 'g1', toolName: 'Glob', parentToolUseId: 'ag1', elapsedMs: 500, taskId: 'tk1' },
-  { t: 'task_progress', taskId: 'tk1', toolUseId: 'ag1', totalTokens: 900, toolUses: 1, durationMs: 800, lastToolName: 'Glob' },
-  { t: 'tool_result', toolUseId: 'g1', content: '3 files', isError: false },
-  { t: 'task_ended', taskId: 'tk1', toolUseId: 'ag1', status: 'completed', totalTokens: 1200, toolUses: 1, durationMs: 1500 },
-  { t: 'tool_result', toolUseId: 'ag1', content: '3', isError: false },
-  live(1500, 20, true),
-  {
-    t: 'result',
-    costUsd: 0.02,
-    durationMs: 4000,
-    durationApiMs: 3000,
-    turns: 2,
-    usage: u(9999),
-    isError: false,
-    contextWindow: 200000,
-    sessionUsage: { ...u(2500), costUsd: 0.02 }
-  }
-]
+const subagentTurn: SessionEvent[] = fx.subagentTurn
 
 describe('activity model', () => {
-  it('replays a subagent turn', () => {
+  it('replays the real subagent turn (background agent outlives the result)', () => {
     const c = reduceAll(fresh(), subagentTurn, 10_000)
     const top = selectTopLevelItems(c)
-    expect(top.filter((i) => i.kind === 'tool')).toHaveLength(1)
-    expect(top.some((i) => i.kind === 'assistant')).toBe(false)
-    expect(selectChildItems(c, 'ag1')).toHaveLength(2)
-    expect(selectTaskForTool(c, 'ag1')).toMatchObject({ status: 'completed', totalTokens: 1200, toolUses: 1 })
-    expect(c.tools['g1']!.progressMs).toBe(500)
+    expect(top.filter((i) => i.kind === 'tool' && i.toolUseId === 'toolu_agent')).toHaveLength(1)
+    expect(top.some((i) => i.kind === 'tool' && i.toolUseId === 'toolu_glob')).toBe(false)
+    expect(selectChildItems(c, 'toolu_agent').length).toBeGreaterThanOrEqual(1)
+    expect(selectTaskForTool(c, 'toolu_agent')).toMatchObject({
+      status: 'running', background: true, totalTokens: 20726, toolUses: 1, lastToolName: 'Glob', description: 'Count files'
+    })
     expect(c.turn).toBeUndefined()
-    expect(c.lastTurn).toMatchObject({ durationMs: 4000, apiCalls: 1 })
-    expect(c.session).toMatchObject({ workMs: 4000, apiMs: 3000, turns: 1, usage: { costUsd: 0.02 } })
-    expect(selectTurnSummary(c)).toBe(c.lastTurn)
-    expect(selectRunningTasks(c)).toHaveLength(0)
+    expect(c.lastTurn).toMatchObject({ durationMs: 4048, apiCalls: 2 })
+    expect(c.session).toMatchObject({ turns: 1, workMs: 4048 })
+    expect(selectRunningTasks(c)).toHaveLength(1)
+    expect(selectSubagentTokens(c)).toBe(20726)
+  })
+
+  it('background task: events after result update it; a new turn keeps it; interrupt stops it', () => {
+    let c = reduceAll(fresh(), subagentTurn, 10_000)
+    c = reduce(c, { t: 'task_progress', taskId: 'task1', totalTokens: 30000, toolUses: 2, durationMs: 5000 }, 11_000)
+    expect(c.tasks['task1']).toMatchObject({ status: 'running', totalTokens: 30000, progressAt: 11_000 })
+    c = reduce(c, { t: 'tool_progress', toolUseId: 'toolu_glob', toolName: 'Glob', elapsedMs: 77 }, 11_100)
+    expect(c.tools['toolu_glob']!.progressMs).toBe(77)
+    c = addUserItem(c, 'next', 12_000)
+    c = reduce(c, { t: 'status', state: 'running' }, 12_000)
+    expect(c.tasks['task1']!.status).toBe('running')
+    c = reduce(c, { t: 'status', state: 'idle' }, 13_000) // interrupt of the new turn
+    expect(c.tasks['task1']!.status).toBe('stopped')
+
+    let d = reduceAll(fresh(), subagentTurn, 10_000)
+    d = reduce(d, { t: 'task_ended', taskId: 'task1', status: 'completed', totalTokens: 31000 }, 14_000)
+    expect(d.tasks['task1']).toMatchObject({ status: 'completed', totalTokens: 31000, endedAt: 14_000 })
+    expect(selectRunningTasks(d)).toHaveLength(0)
+  })
+
+  it('idle after result does not kill a background task; a stopping one is confirmed stopped', () => {
+    let c = reduceAll(fresh(), subagentTurn, 10_000)
+    expect(c.tasks['task1']!.status).toBe('running')
+    c = { ...c, tasks: { ...c.tasks, task1: { ...c.tasks['task1']!, status: 'stopping' } } }
+    c = reduce(c, { t: 'status', state: 'idle' }, 12_000)
+    expect(c.tasks['task1']!.status).toBe('stopped')
+  })
+
+  it('an exact output lower than the estimate is accepted', () => {
+    let c = addUserItem(fresh(), 'hi', 0)
+    c = reduce(c, live(100, 400, false), 1)
+    expect(selectLiveContext({ ...c, lastResult: undefined }, 1000)?.used).toBe(500)
+    expect(c.turn?.exact).toBe(false)
+    c = reduce(c, live(100, 120, true), 2)
+    expect(c.turn).toMatchObject({ contextTokens: 220, exact: true })
+    expect(selectLiveContext(c, 1000)).toMatchObject({ used: 220, exact: true })
   })
 
   it('tool_progress keeps the max', () => {
