@@ -133,12 +133,15 @@ describe('ThinkingBlock', () => {
 })
 
 describe('Working indicator', () => {
-  it('shows while running with nothing streaming, hides once text streams', async () => {
+  it('shows for the whole running turn (also while text streams) and hides at idle', async () => {
     seed([])
     useChatStore.getState().applyEvent('L1', { t: 'status', state: 'running' })
     render(<ChatView target={target} />)
     expect(screen.getByTestId('working-indicator')).toBeInTheDocument()
     act(() => useChatStore.getState().applyEvent('L1', { t: 'text_delta', msgId: 'm', text: 'hi' }))
+    await screen.findByText('hi')
+    expect(screen.getByTestId('working-indicator')).toBeInTheDocument()
+    act(() => useChatStore.getState().applyEvent('L1', { t: 'status', state: 'idle' }))
     await waitFor(() => expect(screen.queryByTestId('working-indicator')).toBeNull())
   })
 })

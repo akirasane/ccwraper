@@ -3,6 +3,8 @@ import * as React from 'react'
 import { StatusPill, type StatusPillState } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { requestRunInTerminal } from '@/lib/terminal-bus'
+import { useNow } from '@/lib/use-now'
+import { formatElapsed } from '../activity/format'
 import type { ToolCallView } from '@/features/chat/model/types'
 import { useChatStore } from '@/stores/chat-store'
 import { diffFromToolInput } from '../diff/compute-diff'
@@ -118,7 +120,7 @@ function Body({ tool, flash, cwd }: { tool: ToolCallView; flash: boolean; cwd: s
   )
 }
 
-function Meta({ tool }: { tool: ToolCallView }): React.JSX.Element | null {
+function Meta({ tool, now }: { tool: ToolCallView; now: number }): React.JSX.Element | null {
   const diff = diffFromToolInput(tool.name, tool.input)
   if (diff) {
     return (
@@ -130,6 +132,15 @@ function Meta({ tool }: { tool: ToolCallView }): React.JSX.Element | null {
   if ((tool.name === 'Grep' || tool.name === 'Glob') && tool.status === 'done') {
     const n = resultLineCount(tool.result)
     return <span className="shrink-0 text-xs text-fg-3 tabular-nums">{n} {n === 1 ? 'match' : 'matches'}</span>
+  }
+  if (tool.status === 'running' && tool.startedAt !== undefined) {
+    // tool_progress is the CLI clock and survives renderer lag: the larger of the two wins.
+    const ms = Math.max(tool.progressMs ?? 0, now - tool.startedAt)
+    return (
+      <span data-testid="tool-elapsed" className="shrink-0 text-xs text-fg-3 tabular-nums">
+        {formatElapsed(ms)}
+      </span>
+    )
   }
   // History replay seeds start and end at the same instant: no real duration to show.
   if (tool.status === 'done' && tool.startedAt !== undefined && tool.endedAt !== undefined && tool.endedAt > tool.startedAt) {
@@ -144,6 +155,7 @@ export function ToolCard({ convId, toolUseId }: { convId: string; toolUseId: str
   const [open, setOpen] = React.useState(true)
   const wasActive = React.useRef(false)
   const status = tool?.status
+  const now = useNow(status === 'running')
   const flash = status === 'done' && wasActive.current
   React.useEffect(() => {
     wasActive.current = status === 'running' || status === 'needs_approval'
@@ -178,7 +190,7 @@ export function ToolCard({ convId, toolUseId }: { convId: string; toolUseId: str
         <ToolIcon name={tool.name} />
         <span className="shrink-0 text-base font-medium text-fg">{tool.name}</span>
         <span className="min-w-0 flex-1 truncate font-mono text-sm text-fg-3">{argSummary(tool.name, tool.input)}</span>
-        <Meta tool={tool} />
+        <Meta tool={tool} now={now} />
         <StatusPill state={PILL[tool.status]} label={tool.status === 'needs_approval' ? 'Needs approval' : undefined} />
       </button>
       {open && (

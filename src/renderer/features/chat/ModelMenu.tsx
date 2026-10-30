@@ -6,6 +6,19 @@ import { chipVariants } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { useChatStore } from '@/stores/chat-store'
 
+/** Label for a model id: exact `value` / `resolvedModel` match, then the family (claude-sonnet-* -> Sonnet), then the raw id. */
+export function modelLabel(models: ModelOption[], id: string | undefined): string {
+  if (!id) return 'Model'
+  const hit = models.find((m) => m.value === id || m.resolvedModel === id)
+  if (hit) return hit.displayName
+  const fam = ALIASES.find((a) => a !== 'default' && new RegExp(`(^|[-_/.])${a}([-_.0-9]|$)`, 'i').test(id))
+  if (fam) {
+    const row = models.find((m) => m.value.toLowerCase() === fam)
+    if (row) return row.displayName
+  }
+  return id
+}
+
 const CACHE_KEY = 'ccwrap.models'
 const ALIASES = ['default', 'opus', 'sonnet', 'fable', 'haiku']
 
@@ -76,7 +89,7 @@ export function ModelMenu({ convId, disabled }: { convId: string; disabled?: boo
   const models = useModels(localId)
   const [showMore, setShowMore] = React.useState(false)
   const { main, more } = splitModels(models)
-  const label = (v: string | undefined): string => (v ? (models.find((m) => m.value === v)?.displayName ?? v) : 'Model')
+  const label = (v: string | undefined): string => modelLabel(models, v)
 
   const choose = (value: string): void => {
     void useChatStore.getState().setModel(convId, value)
@@ -87,7 +100,7 @@ export function ModelMenu({ convId, disabled }: { convId: string; disabled?: boo
         <span className="truncate">{m.displayName}</span>
         {m.description && <span className="truncate text-xs text-fg-3">{m.description}</span>}
       </span>
-      {current === m.value && <Check size={12} aria-hidden className="shrink-0 text-accent-text" />}
+      {!!current && modelLabel(models, current) === m.displayName && <Check size={12} aria-hidden className="shrink-0 text-accent-text" />}
     </DropdownMenu.Item>
   )
 

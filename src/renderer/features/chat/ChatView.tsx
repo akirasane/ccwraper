@@ -1,11 +1,11 @@
 import * as React from 'react'
 import { useChatStore } from '@/stores/chat-store'
 import './chat.css'
+import { WorkingRow } from './activity/WorkingRow'
 import { Composer } from './Composer'
 import type { ChatTarget } from './model/types'
 import { MessageList } from './MessageList'
 import { PermissionDialog } from './permission/PermissionDialog'
-import { selectIsStreaming } from './model/selectors'
 
 const norm = (p: string): string => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase()
 
@@ -32,26 +32,6 @@ function useCwdExists(cwd: string): boolean | null {
     }
   }, [cwd])
   return exists
-}
-
-/** "Working" row shown while a turn runs but nothing is streaming or executing (waiting for the first token / thinking). */
-function WorkingIndicator({ convId }: { convId: string }): React.JSX.Element | null {
-  const idle = useChatStore((s) => {
-    const c = s.convs[convId]
-    if (!c || c.status !== 'running' || selectIsStreaming(c)) return false
-    const last = c.items[c.items.length - 1]
-    return !(last?.kind === 'tool' && c.tools[last.toolUseId]?.status === 'running')
-  })
-  if (!idle) return null
-  return (
-    <div
-      data-testid="working-indicator"
-      role="status"
-      className="mx-auto w-full max-w-[calc(var(--chat-max-w)+48px)] shrink-0 px-6 pb-2 text-sm text-fg-3"
-    >
-      <span className="ccw-shimmer">Working</span>
-    </div>
-  )
 }
 
 function HistoryNotice({ convId }: { convId: string }): React.JSX.Element | null {
@@ -85,7 +65,7 @@ export function ChatView({ target }: { target: ChatTarget }): React.JSX.Element 
     >
       {has && <HistoryNotice convId={convId} />}
       {has ? <MessageList convId={convId} /> : <div className="flex-1" />}
-      {has && <WorkingIndicator convId={convId} />}
+      {has && <WorkingRow convId={convId} />}
       <Composer
         convId={convId}
         disabled={missing}

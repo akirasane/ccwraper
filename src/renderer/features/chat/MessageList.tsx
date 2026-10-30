@@ -2,35 +2,13 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import * as React from 'react'
 import { cn } from '@/lib/cn'
 import { useChatStore } from '@/stores/chat-store'
-import { AssistantMessage } from './AssistantMessage'
+import { ItemView } from './ItemView'
+import { selectTopLevelItems } from './model/selectors'
 import type { ChatItem } from './model/types'
-import { ToolCard } from './tools/ToolCard'
-import { UserMessage } from './UserMessage'
 
 const GAP = 14
 const STICK_PX = 48
 const EMPTY: ChatItem[] = []
-
-function ItemView({ convId, item }: { convId: string; item: ChatItem }): React.JSX.Element {
-  switch (item.kind) {
-    case 'user':
-      return <UserMessage text={item.text} />
-    case 'assistant':
-      return <AssistantMessage item={item} />
-    case 'tool':
-      return <ToolCard convId={convId} toolUseId={item.toolUseId} />
-    case 'error':
-      return (
-        <div
-          role="alert"
-          data-testid="error-message"
-          className="rounded-md border border-danger-border bg-danger-bg px-3.5 py-2.5 text-base text-danger"
-        >
-          {item.message}
-        </div>
-      )
-  }
-}
 
 /**
  * Virtualized stream. Content is max 760 wide with 24px side padding and a 14px gap. Sticks to the bottom while
@@ -38,7 +16,11 @@ function ItemView({ convId, item }: { convId: string; item: ChatItem }): React.J
  * inner element (the absolutely positioned virtual row is never animated).
  */
 export function MessageList({ convId }: { convId: string }): React.JSX.Element {
-  const items = useChatStore((s) => s.convs[convId]?.items) ?? EMPTY
+  const items =
+    useChatStore((s) => {
+      const c = s.convs[convId]
+      return c ? selectTopLevelItems(c) : undefined
+    }) ?? EMPTY
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const stick = React.useRef(true)
   const seen = React.useRef<Set<string>>(new Set())
