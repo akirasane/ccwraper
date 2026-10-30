@@ -86,6 +86,18 @@ async function main(): Promise<void> {
   console.log('claude binary:', JSON.stringify(resolveClaudeBinary()))
   console.log('cwd:', cwd)
 
+  // SPIKE_MODELS=1: log the supportedModels() shape (settingSources: [], one trivial turn) and exit.
+  if (process.env['SPIKE_MODELS']) {
+    console.log('=== supportedModels ===')
+    const m = await start('M', 'Say ok. No tools.', { settingSources: [] })
+    await m.waitFor((e) => e.t === 'init')
+    console.log(JSON.stringify(await m.session.supportedModels(), null, 2))
+    m.session.close()
+    await m.session.done
+    console.log('SPIKE DONE')
+    return
+  }
+
   if (!process.env['SPIKE_SKIP_123']) {
   // 1. Basic prompt: init, streaming deltas, result.
   console.log('\n=== TEST 1: basic prompt ===')

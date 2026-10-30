@@ -11,6 +11,7 @@ import type {
   SDKMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import type { ModelOption } from '../../shared/config'
 import type { Block, SessionEvent, Usage } from '../../shared/events'
 import { resolveClaudeExecutable } from '../paths'
 
@@ -48,6 +49,7 @@ export interface AdapterSession {
   interrupt(): Promise<void>
   setModel(model: string): Promise<void>
   setPermissionMode(mode: PermissionModeName): Promise<void>
+  supportedModels(): Promise<ModelOption[]>
   replyPermission(
     reqId: string,
     decision: 'allow' | 'deny',
@@ -123,11 +125,21 @@ function stringifyToolResult(content: unknown): string {
 }
 
 /** Human label for the rule an "always allow" would write, e.g. `Bash(npm test:*)`. */
+export function ruleLabelsFrom(suggestions: PermissionUpdate[] | undefined): string[] {
+  const labels: string[] = []
+  for (const s of suggestions ?? []) {
+    if (s.type !== 'addRules') continue
+    for (const rule of s.rules) {
+      const label = rule.ruleContent ? `${rule.toolName}(${rule.ruleContent})` : rule.toolName
+      if (!labels.includes(label)) labels.push(label)
+    }
+  }
+  return labels
+}
+
+/** First rule label (legacy single-label field). */
 export function ruleLabelFrom(suggestions: PermissionUpdate[] | undefined): string | undefined {
-  const add = suggestions?.find((s) => s.type === 'addRules')
-  const rule = add && add.type === 'addRules' ? add.rules[0] : undefined
-  if (!rule) return undefined
-  return rule.ruleContent ? `${rule.toolName}(${rule.ruleContent})` : rule.toolName
+  return ruleLabelsFrom(suggestions)[0]
 }
 
 /** Build the SDK permission result for a user decision (D5 remember scopes). */
@@ -138,7 +150,14 @@ export function buildPermissionResult(
   updatedInput?: Record<string, unknown>
 ): PermissionResult {
   if (decision === 'deny') return { behavior: 'deny', message: 'Denied by user' }
-  const dest = remember === 'always' ? 'localSettings' : remember === 'session' ? 'session' : undefined
+  const dest =
+    remember === 'always'
+      ? 'localSettings'
+      : remember === 'user'
+        ? 'userSettings'
+        : remember === 'session'
+          ? 'session'
+          : undefined
   // Only persist rules. Other suggestions (e.g. setMode acceptEdits for Write/Edit) would silently change the
   // user's default mode, which "Always allow <rule>" must not do.
   const rules = suggestions?.filter((s) => s.type === 'addRules')
@@ -279,14 +298,14 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
         }
         signal.addEventListener('abort', onAbort, { once: true })
         opts.onEvent({ t: 'status', state: 'waiting_permission' })
-        const ruleLabel = ruleLabelFrom(suggestions)
+        const ruleLabels = ruleLabelsFrom(suggestions)
         opts.onEvent({
           t: 'permission_request',
           reqId,
           toolName,
           input: toolInput,
           ...(title ? { title } : {}),
-          ...(ruleLabel ? { ruleLabel } : {})
+          ...(ruleLabels.length ? { ruleLabel: ruleLabels[0], ruleLabels } : {})
         })
       })
   }
@@ -335,6 +354,14 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
     },
     setModel: (model) => q.setModel(model),
     setPermissionMode: (mode) => q.setPermissionMode(mode as SdkPermissionMode),
+    async supportedModels() {
+      const models = await q.supportedModels()
+      return models.map((m) => ({
+        value: m.value,
+        displayName: m.displayName,
+        ...(m.description ? { description: m.description } : {})
+      }))
+    },
     replyPermission(reqId, decision, remember, updatedInput) {
       const p = pending.get(reqId)
       if (!p) return

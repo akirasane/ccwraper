@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
+import type { ModelOption } from '../../shared/config'
 import type { SessionEvent } from '../../shared/events'
 import type { PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
 import { startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
@@ -24,6 +25,7 @@ interface LiveSession {
 
 export class SessionManager {
   private sessions = new Map<string, LiveSession>()
+  private modelsCache: ModelOption[] | undefined
   constructor(
     private emit: (localId: string, e: SessionEvent) => void,
     private deps: SessionManagerDeps = {}
@@ -81,6 +83,13 @@ export class SessionManager {
   }
   setPermissionMode(localId: string, mode: PermissionModeName): Promise<void> {
     return this.get(localId).adapter.setPermissionMode(mode)
+  }
+  /** Model list is account-wide, so the first successful fetch is cached for the app lifetime. */
+  async supportedModels(localId: string): Promise<ModelOption[]> {
+    if (this.modelsCache) return this.modelsCache
+    const models = await this.get(localId).adapter.supportedModels()
+    this.modelsCache = models
+    return models
   }
   permissionReply(a: PermissionReplyArgs): void {
     this.get(a.localId).adapter.replyPermission(a.reqId, a.decision, a.remember, a.updatedInput)

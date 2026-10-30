@@ -11,6 +11,7 @@ function fakeAdapter(): AdapterSession {
     interrupt: vi.fn(async () => {}),
     setModel: vi.fn(async () => {}),
     setPermissionMode: vi.fn(async () => {}),
+    supportedModels: vi.fn(async () => [{ value: 'sonnet', displayName: 'Sonnet' }]),
     replyPermission: vi.fn(),
     done: new Promise<void>(() => {}),
     close: vi.fn()
@@ -61,6 +62,24 @@ describe('SessionManager', () => {
       const startSession = vi.fn(async () => fakeAdapter())
       await new SessionManager(() => {}, { startSession }).start({ cwd: dir, prompt: 'hi' })
       expect(startSession).toHaveBeenCalledWith(expect.objectContaining({ thinking: true }))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('passes setModel / setPermissionMode through and caches supportedModels', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ccwrap-'))
+    try {
+      const adapter = fakeAdapter()
+      const m = new SessionManager(() => {}, { startSession: vi.fn(async () => adapter) })
+      const { localId } = await m.start({ cwd: dir, prompt: 'hi' })
+      await m.setModel(localId, 'opus')
+      expect(adapter.setModel).toHaveBeenCalledWith('opus')
+      await m.setPermissionMode(localId, 'plan')
+      expect(adapter.setPermissionMode).toHaveBeenCalledWith('plan')
+      expect(await m.supportedModels(localId)).toEqual([{ value: 'sonnet', displayName: 'Sonnet' }])
+      await m.supportedModels(localId)
+      expect(adapter.supportedModels).toHaveBeenCalledTimes(1)
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

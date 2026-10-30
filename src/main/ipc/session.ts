@@ -28,8 +28,9 @@ export function registerSessionIpc(manager: SessionManager): Disposer {
   ipcMain.handle(IpcChannels.sessionPermissionReply, (_e, raw: unknown) =>
     manager.permissionReply(PermissionReplySchema.parse(raw))
   )
-  // STUB (WP0): WP4 wires this to manager.supportedModels(localId).
-  ipcMain.handle(IpcChannels.sessionSupportedModels, (): ModelOption[] => [])
+  ipcMain.handle(IpcChannels.sessionSupportedModels, (_e, id: unknown): Promise<ModelOption[]> =>
+    manager.supportedModels(String(id))
+  )
   ipcMain.handle(IpcChannels.pickDirectory, async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return r.canceled ? null : (r.filePaths[0] ?? null)

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { Options, PermissionResult, PermissionUpdate, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { SessionEvent } from '../../shared/events'
-import { mapMessage, ruleLabelFrom, startSdkSession, type QueryImpl } from './sdk-adapter'
+import {
+  buildPermissionResult,
+  mapMessage,
+  ruleLabelFrom,
+  ruleLabelsFrom,
+  startSdkSession, type QueryImpl } from './sdk-adapter'
 
 const msg = (m: unknown): SDKMessage => m as SDKMessage
 
@@ -13,6 +18,8 @@ function makeFake() {
   let canUseTool: Options['canUseTool']
   const fake = {
     interruptCalls: 0,
+    modelCalls: [] as string[],
+    modeCalls: [] as string[],
     push(m: unknown) {
       queue.push(msg(m))
       wake?.()
@@ -44,8 +51,16 @@ function makeFake() {
       interrupt: async () => {
         fake.interruptCalls++
       },
-      setModel: async () => {},
-      setPermissionMode: async () => {},
+      setModel: async (m: string) => {
+        fake.modelCalls.push(m)
+      },
+      setPermissionMode: async (m: string) => {
+        fake.modeCalls.push(m)
+      },
+      supportedModels: async () => [
+        { value: 'default', displayName: 'Default', description: 'Recommended', extra: 1 },
+        { value: 'haiku', displayName: 'Haiku', description: '' }
+      ],
       close: () => fake.end()
     }
     return q as unknown as Query
@@ -180,6 +195,62 @@ describe('permission flow', () => {
     const p = fake.callTool('Bash', { command: 'x' })
     s.replyPermission(requestId(events), 'allow', 'once', { command: 'y' })
     expect(await p).toMatchObject({ behavior: 'allow', updatedInput: { command: 'y' } })
+    s.close()
+  })
+})
+
+describe('ruleLabels', () => {
+  it('compound command yields every rule, deduped', async () => {
+    const compound: PermissionUpdate[] = [
+      {
+        type: 'addRules',
+        rules: [
+          { toolName: 'Bash', ruleContent: 'git add:*' },
+          { toolName: 'Bash', ruleContent: 'git commit:*' },
+          { toolName: 'Bash', ruleContent: 'git add:*' }
+        ],
+        behavior: 'allow',
+        destination: 'localSettings'
+      },
+      { type: 'setMode', mode: 'acceptEdits', destination: 'session' },
+      { type: 'addRules', rules: [{ toolName: 'Read' }], behavior: 'allow', destination: 'localSettings' }
+    ]
+    expect(ruleLabelsFrom(compound)).toEqual(['Bash(git add:*)', 'Bash(git commit:*)', 'Read'])
+    expect(ruleLabelFrom(compound)).toBe('Bash(git add:*)')
+    expect(ruleLabelsFrom(undefined)).toEqual([])
+    const { fake, s, events } = await setup()
+    void fake.callTool('Bash', { command: 'git add . && git commit' }, compound)
+    expect(events.find((e) => e.t === 'permission_request')).toMatchObject({
+      ruleLabel: 'Bash(git add:*)',
+      ruleLabels: ['Bash(git add:*)', 'Bash(git commit:*)', 'Read']
+    })
+    s.close()
+  })
+})
+
+describe('remember user', () => {
+  it('maps user -> userSettings for all addRules', () => {
+    const r = buildPermissionResult('allow', 'user', sugg)
+    expect(r).toMatchObject({ behavior: 'allow', updatedPermissions: [{ type: 'addRules', destination: 'userSettings' }] })
+    expect('updatedPermissions' in buildPermissionResult('allow', 'once', sugg)).toBe(false)
+  })
+})
+
+describe('model / mode / supportedModels', () => {
+  it('passes setModel and setPermissionMode to the query', async () => {
+    const { fake, s } = await setup()
+    await s.setModel('opus')
+    await s.setPermissionMode('plan')
+    expect(fake.modelCalls).toEqual(['opus'])
+    expect(fake.modeCalls).toEqual(['plan'])
+    s.close()
+  })
+  it('maps supportedModels to ModelOption[]', async () => {
+    const { s } = await setup()
+    expect(await s.supportedModels()).toEqual([
+      { value: 'default', displayName: 'Default', description: 'Recommended' },
+      { value: 'haiku', displayName: 'Haiku' }
+    ])
     s.close()
   })
 })
