@@ -73,6 +73,13 @@ export function MessageList({ convId }: { convId: string }): React.JSX.Element {
     if (el && stick.current) el.scrollTop = el.scrollHeight
   }, [total, items.length])
 
+  // Tabbing into an earlier row must not be undone by the stick-to-bottom layout effect.
+  const onFocus = (e: React.FocusEvent<HTMLDivElement>): void => {
+    const row = (e.target as HTMLElement).closest('[data-index]')
+    const idx = row ? Number(row.getAttribute('data-index')) : NaN
+    if (Number.isFinite(idx) && idx < items.length - 1) stick.current = false
+  }
+
   const onScroll = (): void => {
     const el = scrollRef.current
     if (!el) return
@@ -83,6 +90,8 @@ export function MessageList({ convId }: { convId: string }): React.JSX.Element {
     <div
       ref={scrollRef}
       onScroll={onScroll}
+      onFocus={onFocus}
+      style={{ scrollPaddingBlock: '24px 96px' }}
       data-testid="message-list"
       className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
     >

@@ -117,7 +117,7 @@ describe('PermissionDialog', () => {
     render(<PermissionDialog convId="c1" />)
     expect(screen.getByText('Write b.txt')).toBeInTheDocument()
     expect(screen.getByTestId('diff-view')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /always allow/i })).toHaveTextContent('Write')
+    expect(screen.getByTestId('perm-rules')).toHaveTextContent('Write')
     expect(screen.getByRole('button', { name: /allow once/i })).toHaveFocus()
   })
 

@@ -1,9 +1,10 @@
-import { ArrowUp, Cpu, ShieldCheck, Square } from 'lucide-react'
+import { ArrowUp, ShieldCheck, Square } from 'lucide-react'
 import * as React from 'react'
 import type { PermissionMode } from '@shared/ipc'
 import { Button, Chip, Kbd } from '@/components/ui'
 import { useChatStore } from '@/stores/chat-store'
 import { selectIsRunning } from './model/selectors'
+import { ModelMenu } from './ModelMenu'
 
 const CYCLE: PermissionMode[] = ['default', 'acceptEdits', 'plan']
 const MODE_LABEL: Partial<Record<PermissionMode, string>> = {
@@ -28,7 +29,6 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
     return c ? selectIsRunning(c) : false
   })
   const hasPending = useChatStore((s) => (s.convs[convId]?.pending.length ?? 0) > 0)
-  const model = useChatStore((s) => s.convs[convId]?.meta.model)
   const mode = useChatStore((s) => s.convs[convId]?.meta.permissionMode ?? s.modes[convId] ?? 'default') as PermissionMode
   const [text, setText] = React.useState('')
   const ref = React.useRef<HTMLTextAreaElement>(null)
@@ -94,12 +94,7 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
               <ShieldCheck size={12} aria-hidden />
               {MODE_LABEL[mode] ?? mode}
             </Chip>
-            {model && (
-              <Chip aria-label={`Model: ${model}`}>
-                <Cpu size={12} aria-hidden />
-                {model}
-              </Chip>
-            )}
+            <ModelMenu convId={convId} disabled={disabled} />
             <div className="min-w-0 flex-1" />
             <span className="flex items-center gap-1.5 text-xs text-fg-3">
               {running ? (

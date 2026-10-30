@@ -1,3 +1,5 @@
+import { ChevronDown } from 'lucide-react'
+import { DropdownMenu } from 'radix-ui'
 import * as React from 'react'
 import {
   Button,
@@ -49,6 +51,13 @@ function InputPreview({ req }: { req: PendingPermission }): React.JSX.Element {
   )
 }
 
+type Scope = 'project' | 'user' | 'session'
+const SCOPES: { id: Scope; label: string; remember: 'always' | 'user' | 'session'; where: string }[] = [
+  { id: 'project', label: 'This project', remember: 'always', where: 'this project (local settings)' },
+  { id: 'user', label: 'All projects', remember: 'user', where: 'all projects (user settings)' },
+  { id: 'session', label: 'This session', remember: 'session', where: 'this session only' }
+]
+
 export function PermissionDialog({ convId }: { convId: string }): React.JSX.Element | null {
   const req = useChatStore((s) => {
     const c = s.convs[convId]
@@ -63,9 +72,11 @@ export function PermissionDialog({ convId }: { convId: string }): React.JSX.Elem
 
   const deny = (): void => void replyPermission(convId, reqId, 'deny')
   const once = (): void => void replyPermission(convId, reqId, 'allow', 'once')
-  const always = async (): Promise<void> => {
-    await replyPermission(convId, reqId, 'allow', 'always')
-    toast.success('Rule saved', { description: req.ruleLabel })
+  const labels = req.ruleLabels?.length ? req.ruleLabels : req.ruleLabel ? [req.ruleLabel] : []
+  const always = async (scope: Scope): Promise<void> => {
+    const s = SCOPES.find((x) => x.id === scope)!
+    await replyPermission(convId, reqId, 'allow', s.remember)
+    toast.success(`Rule saved for ${s.where}`, { description: labels.join(', ') })
   }
 
   return (
@@ -94,18 +105,65 @@ export function PermissionDialog({ convId }: { convId: string }): React.JSX.Elem
           <DialogDescription id="perm-desc">Claude wants to use {req.toolName}.</DialogDescription>
         </DialogHeader>
         <InputPreview req={req} />
+        {labels.length > 0 && (
+          <div className="mt-3" data-testid="perm-rules">
+            <div className="mb-1 text-2xs uppercase tracking-wider text-fg-muted">
+              {labels.length === 1 ? 'Always allow rule' : `Always allow rules (${labels.length})`}
+            </div>
+            <ul className="flex flex-wrap gap-1.5">
+              {labels.map((l) => (
+                <li key={l} className="rounded-sm border border-border bg-bg-1 px-1.5 py-0.5 font-mono text-sm text-fg-2">
+                  {l}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={deny}>
             Deny <Kbd>Esc</Kbd>
           </Button>
-          <Button
-            variant="secondary"
-            disabled={!req.ruleLabel}
-            onClick={() => void always()}
-            title={req.ruleLabel ? undefined : 'No rule available for this request'}
-          >
-            Always allow{req.ruleLabel && <span className="font-mono text-sm text-fg-2">{req.ruleLabel}</span>}
-          </Button>
+          <div className="inline-flex items-center" data-testid="perm-always">
+            <Button
+              variant="secondary"
+              disabled={labels.length === 0}
+              onClick={() => void always('project')}
+              title={labels.length === 0 ? 'No rule available for this request' : 'Always allow in this project'}
+              className="rounded-r-none"
+            >
+              Always allow
+            </Button>
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <Button
+                  variant="secondary"
+                  disabled={labels.length === 0}
+                  aria-label="Choose where to save the rule"
+                  className="rounded-l-none border-l-0 px-1.5"
+                >
+                  <ChevronDown size={12} aria-hidden />
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  side="top"
+                  align="end"
+                  sideOffset={6}
+                  className="z-[60] min-w-[180px] rounded-md border border-border-glass bg-glass p-1 text-fg shadow-lg backdrop-blur-[var(--blur-glass)]"
+                >
+                  {SCOPES.map((sc) => (
+                    <DropdownMenu.Item
+                      key={sc.id}
+                      onSelect={() => void always(sc.id)}
+                      className="flex cursor-pointer select-none items-center rounded-sm px-2 py-1.5 text-sm text-fg-2 outline-none data-[highlighted]:bg-bg-3 data-[highlighted]:text-fg"
+                    >
+                      {sc.label}
+                    </DropdownMenu.Item>
+                  ))}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+          </div>
           <Button ref={allowRef} variant="primary" onClick={once}>
             Allow once <Kbd>Enter</Kbd>
           </Button>

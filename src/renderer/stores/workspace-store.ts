@@ -47,6 +47,10 @@ interface WorkspaceState {
   addFolder: () => Promise<void>
 }
 
+/** Heuristic: a big transcript that replays to almost nothing was probably compacted or cut short. */
+const TRUNCATION_BYTES = 2 * 1024 * 1024
+const TRUNCATION_EVENTS = 20
+
 let draftSeq = 0
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
@@ -87,6 +91,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       try {
         const events = await window.ccwrap.history.load({ sessionId: s.sessionId, cwd: s.cwd })
         useChatStore.getState().seedFromHistory(convId, events)
+        if ((s.fileSize ?? 0) > TRUNCATION_BYTES && events.length < TRUNCATION_EVENTS) {
+          useChatStore.getState().setNotice(convId, 'History may be incomplete (large or compacted session)')
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         useChatStore.getState().seedFromHistory(convId, [{ t: 'error', message }])

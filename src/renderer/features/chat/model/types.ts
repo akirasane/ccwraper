@@ -43,6 +43,8 @@ export interface PendingPermission {
   input: unknown
   title?: string
   ruleLabel?: string
+  /** Every rule an "Always allow" would save (all addRules suggestions). */
+  ruleLabels?: string[]
   /** Set when the request matched a running tool by name + input. */
   toolUseId?: string
 }
@@ -78,6 +80,8 @@ export interface ConvState {
   meta: ConvMeta
   status: SessionStatus
   lastResult?: LastResult
+  /** Inline notice above the stream (e.g. truncated history). */
+  notice?: string
   /** Monotonic counter for item ids; keeps the reducer pure. */
   seq: number
 }

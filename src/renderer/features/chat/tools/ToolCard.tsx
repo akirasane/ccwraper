@@ -1,7 +1,8 @@
-import { ChevronRight, FilePen, FileText, Search, SquareTerminal, Wrench } from 'lucide-react'
+import { ChevronRight, FilePen, FileText, Search, SquareTerminal, TerminalSquare, Wrench } from 'lucide-react'
 import * as React from 'react'
 import { StatusPill, type StatusPillState } from '@/components/ui'
 import { cn } from '@/lib/cn'
+import { requestRunInTerminal } from '@/lib/terminal-bus'
 import type { ToolCallView } from '@/features/chat/model/types'
 import { useChatStore } from '@/stores/chat-store'
 import { diffFromToolInput } from '../diff/compute-diff'
@@ -44,7 +45,7 @@ function ResultBlock({ tool }: { tool: ToolCallView }): React.JSX.Element | null
   )
 }
 
-function Body({ tool, flash }: { tool: ToolCallView; flash: boolean }): React.JSX.Element {
+function Body({ tool, flash, cwd }: { tool: ToolCallView; flash: boolean; cwd: string }): React.JSX.Element {
   const input = asRec(tool.input)
   const diff = diffFromToolInput(tool.name, tool.input)
   if (diff) {
@@ -59,9 +60,23 @@ function Body({ tool, flash }: { tool: ToolCallView; flash: boolean }): React.JS
   if (tool.name === 'Bash') {
     return (
       <>
-        <div className="px-3 pb-2 font-mono text-sm text-fg">
-          <span className="select-none text-fg-3">$ </span>
-          <span className="whitespace-pre-wrap break-all">{asStr(input.command)}</span>
+        <div className="flex items-start gap-2 px-3 pb-2">
+          <div className="min-w-0 flex-1 font-mono text-sm text-fg">
+            <span className="select-none text-fg-3">$ </span>
+            <span className="whitespace-pre-wrap break-all">{asStr(input.command)}</span>
+          </div>
+          {asStr(input.command) && (
+            <button
+              type="button"
+              aria-label="Run in terminal"
+              title="Type this command into a terminal (not executed)"
+              onClick={() => requestRunInTerminal({ cwd, command: asStr(input.command) })}
+              className="inline-flex h-5 shrink-0 items-center gap-1 rounded-xs border border-border px-1.5 text-xs text-fg-3 transition-colors duration-fast hover:bg-bg-3 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent-from"
+            >
+              <TerminalSquare size={11} aria-hidden />
+              Run in terminal
+            </button>
+          )}
         </div>
         <ResultBlock tool={tool} />
       </>
@@ -125,6 +140,7 @@ function Meta({ tool }: { tool: ToolCallView }): React.JSX.Element | null {
 
 export function ToolCard({ convId, toolUseId }: { convId: string; toolUseId: string }): React.JSX.Element | null {
   const tool = useChatStore((s) => s.convs[convId]?.tools[toolUseId])
+  const cwd = useChatStore((s) => s.convs[convId]?.cwd ?? '')
   const [open, setOpen] = React.useState(true)
   const wasActive = React.useRef(false)
   const status = tool?.status
@@ -170,7 +186,7 @@ export function ToolCard({ convId, toolUseId }: { convId: string; toolUseId: str
           id={bodyId}
           className={cn('border-t pb-1 pt-2', tool.status === 'error' ? 'border-danger-border bg-danger-bg' : 'border-border')}
         >
-          <Body tool={tool} flash={flash} />
+          <Body tool={tool} flash={flash} cwd={cwd} />
         </div>
       )}
     </div>

@@ -54,6 +54,20 @@ function WorkingIndicator({ convId }: { convId: string }): React.JSX.Element | n
   )
 }
 
+function HistoryNotice({ convId }: { convId: string }): React.JSX.Element | null {
+  const notice = useChatStore((s) => s.convs[convId]?.notice)
+  if (!notice) return null
+  return (
+    <div
+      role="status"
+      data-testid="history-notice"
+      className="mx-auto w-full max-w-[calc(var(--chat-max-w)+48px)] shrink-0 px-6 pt-3"
+    >
+      <div className="rounded-md border border-warn-border bg-warn-bg px-3 py-2 text-sm text-warn">{notice}</div>
+    </div>
+  )
+}
+
 export function ChatView({ target }: { target: ChatTarget }): React.JSX.Element {
   const { convId } = target
   const has = useChatStore((s) => convId in s.convs)
@@ -69,6 +83,7 @@ export function ChatView({ target }: { target: ChatTarget }): React.JSX.Element 
       data-conv-id={convId}
       className="ccw-chat relative flex h-full min-h-0 min-w-0 flex-col bg-bg-0"
     >
+      {has && <HistoryNotice convId={convId} />}
       {has ? <MessageList convId={convId} /> : <div className="flex-1" />}
       {has && <WorkingIndicator convId={convId} />}
       <Composer

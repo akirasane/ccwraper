@@ -236,6 +236,7 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
         input: e.input,
         ...(e.title ? { title: e.title } : {}),
         ...(e.ruleLabel ? { ruleLabel: e.ruleLabel } : {}),
+        ...(e.ruleLabels?.length ? { ruleLabels: e.ruleLabels } : e.ruleLabel ? { ruleLabels: [e.ruleLabel] } : {}),
         ...(match ? { toolUseId: match.toolUseId } : {})
       }
       const pending = [...conv.pending.filter((p) => p.reqId !== e.reqId), req]

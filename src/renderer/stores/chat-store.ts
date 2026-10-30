@@ -16,6 +16,8 @@ interface ChatState {
   localToConv: Record<string, string>
   /** Permission mode to use when the session starts / was last chosen. */
   modes: Record<string, PermissionMode>
+  /** Model chosen on a draft (no live session yet); sent with session:start. */
+  draftModels: Record<string, string>
   createConv: (target: ChatTarget) => void
   removeConv: (convId: string) => void
   seedFromHistory: (convId: string, events: SessionEvent[]) => void
@@ -27,9 +29,11 @@ interface ChatState {
     convId: string,
     reqId: string,
     decision: 'allow' | 'deny',
-    remember?: 'once' | 'session' | 'always'
+    remember?: 'once' | 'session' | 'always' | 'user'
   ) => Promise<void>
   setPermissionMode: (convId: string, mode: PermissionMode) => Promise<void>
+  setModel: (convId: string, model: string) => Promise<void>
+  setNotice: (convId: string, notice: string | undefined) => void
 }
 
 // Events that arrive before start() resolves have no binding yet; replayed on bind.
@@ -106,6 +110,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     convs: {},
     localToConv: {},
     modes: {},
+    draftModels: {},
 
     createConv: (target) =>
       set((s) => {
@@ -158,11 +163,13 @@ export const useChatStore = create<ChatState>((set, get) => {
           await window.ccwrap.session.send({ localId: c.localId, text })
         } else {
           const mode = get().modes[convId]
+          const model = get().draftModels[convId]
           const { localId } = await window.ccwrap.session.start({
             cwd: c.cwd,
             prompt: text,
             ...(c.resumeSessionId ? { resumeId: c.resumeSessionId } : {}),
-            ...(mode ? { permissionMode: mode } : {})
+            ...(mode ? { permissionMode: mode } : {}),
+            ...(model && model !== 'default' ? { model } : {})
           })
           get().bindLocalId(convId, localId)
         }
@@ -207,7 +214,29 @@ export const useChatStore = create<ChatState>((set, get) => {
       } catch (err) {
         fail(convId, err)
       }
-    }
+    },
+
+    setModel: async (convId, model) => {
+      const localId = get().convs[convId]?.localId
+      if (!localId) {
+        set((s) => ({ draftModels: { ...s.draftModels, [convId]: model } }))
+        patch(convId, (c) => ({ ...c, meta: { ...c.meta, model } }))
+        return
+      }
+      try {
+        await window.ccwrap.session.setModel(localId, model)
+        patch(convId, (c) => ({ ...c, meta: { ...c.meta, model } }))
+      } catch (err) {
+        fail(convId, err)
+      }
+    },
+
+    setNotice: (convId, notice) =>
+      patch(convId, (c) => {
+        const { notice: _drop, ...rest } = c
+        void _drop
+        return notice ? { ...rest, notice } : rest
+      })
   }
 })
 
