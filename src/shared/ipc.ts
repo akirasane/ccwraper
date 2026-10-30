@@ -19,7 +19,7 @@ import type {
   ResolvedSettingsView,
   ShellProfile
 } from './config'
-import type { AppPrefs, AppPrefsPatch, AuthStatus, PrefsSetResult } from './app'
+import type { AppPrefs, AppPrefsPatch, AuthStatus, AutoResumeReport, PrefsSetResult } from './app'
 import type { AppInfo, HistorySessionInfo, ProjectInfo, SessionEvent } from './events'
 import type { GitDiff, GitLog, GitStatus } from './git'
 import type { UsageQuery, UsageSummary } from './usage'
@@ -245,10 +245,18 @@ export const AppPrefsPatchSchema = z
       .object({ enabled: Flag, accelerator: z.string().min(1).max(64) })
       .partial()
       .strict(),
-    confirmQuitWhileRunning: Flag
+    confirmQuitWhileRunning: Flag,
+    autoResume: z.object({ enabled: Flag, prompt: z.string().max(2000) }).partial().strict()
   })
   .partial()
   .strict()
+
+export const AutoResumeReportSchema = z.object({
+  kind: z.enum(['paused', 'resumed', 'update']),
+  pending: z.number().int().min(0).max(1000),
+  title: z.string().max(120).optional(),
+  resetAt: z.number().finite().optional()
+})
 
 export const AuthStatusArgsSchema = z.object({ refresh: z.boolean().optional() })
 export type AuthStatusArgs = z.infer<typeof AuthStatusArgsSchema>
@@ -343,6 +351,10 @@ export interface CcwrapApi {
     onChanged(cb: (p: AppPrefs) => void): () => void
   }
   usage: { summary(q: UsageQuery): Promise<UsageSummary> }
+  autoResume: {
+    /** Fire-and-forget. */
+    report(r: AutoResumeReport): void
+  }
   git: {
     status(a: { cwd: string }): Promise<GitStatus>
     diff(a: { cwd: string; path: string; staged: boolean }): Promise<GitDiff>

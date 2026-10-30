@@ -51,6 +51,7 @@ const api: CcwrapApi = {
     onChanged: (cb) => subscribe<AppPrefs>(IpcChannels.prefsChanged, cb)
   },
   usage: { summary: (q) => ipcRenderer.invoke(IpcChannels.usageSummary, q) },
+  autoResume: { report: (r) => ipcRenderer.send(IpcChannels.autoResumeReport, r) },
   git: {
     status: (a) => ipcRenderer.invoke(IpcChannels.gitStatus, a),
     diff: (a) => ipcRenderer.invoke(IpcChannels.gitDiff, a),

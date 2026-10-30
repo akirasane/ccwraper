@@ -9,11 +9,21 @@ export interface NotificationPrefs {
   flashTaskbar: boolean
 }
 
+/** Auto-resume after a subscription usage limit (P4 WP14). Off by default. */
+export interface AutoResumePrefs {
+  enabled: boolean
+  /** Sent to the paused session when the limit resets. Empty means DEFAULT_AUTO_RESUME_PROMPT. */
+  prompt: string
+}
+
+export const DEFAULT_AUTO_RESUME_PROMPT = 'Continue where you left off.'
+
 export interface AppPrefs {
   version: 1
   notifications: NotificationPrefs
   hotkey: { enabled: boolean; accelerator: string }
   confirmQuitWhileRunning: boolean
+  autoResume: AutoResumePrefs
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
@@ -27,13 +37,26 @@ export const DEFAULT_PREFS: AppPrefs = {
     flashTaskbar: true
   },
   hotkey: { enabled: false, accelerator: 'Control+Alt+Space' },
-  confirmQuitWhileRunning: true
+  confirmQuitWhileRunning: true,
+  autoResume: { enabled: false, prompt: DEFAULT_AUTO_RESUME_PROMPT }
 }
 
 export type AppPrefsPatch = {
   notifications?: Partial<NotificationPrefs>
   hotkey?: Partial<AppPrefs['hotkey']>
   confirmQuitWhileRunning?: boolean
+  autoResume?: Partial<AutoResumePrefs>
+}
+
+/** Renderer -> main (fire-and-forget): drives the pause/resume native notifications and the keep-awake lock. */
+export interface AutoResumeReport {
+  kind: 'paused' | 'resumed' | 'update'
+  /** Pauses currently waiting for their reset (powerSaveBlocker is held while > 0). */
+  pending: number
+  /** Tab title only; never message content. */
+  title?: string
+  /** Epoch ms: the time the tab is paused until (paused) or the reset that passed (resumed). */
+  resetAt?: number
 }
 
 export interface HotkeyStatus {

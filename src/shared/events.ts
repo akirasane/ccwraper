@@ -56,6 +56,12 @@ export type SessionEvent =
       modelUsage?: Record<string, Usage & { costUsd: number }>
     }
   | { t: 'error'; message: string }
+  /**
+   * The turn that just ended was stopped by a subscription usage limit (P4 WP14). Emitted right before that turn's
+   * `result`. `resetsAt` = epoch ms of the reset when known (structured rate_limit_event, else parsed from the CLI text);
+   * absent when unknown. Carries no message text.
+   */
+  | { t: 'rate_limited'; resetsAt?: number; limitType?: string; source: 'event' | 'text' | 'none' }
   /** The SDK query loop ended (process exit / crash / close): no further task events can arrive. */
   | { t: 'session_closed' }
   | {
