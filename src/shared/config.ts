@@ -3,9 +3,13 @@
 export type SettingsScope = 'user' | 'project' | 'local'
 // user ~/.claude/CLAUDE.md | project <p>/CLAUDE.md | projectDotClaude <p>/.claude/CLAUDE.md | local <p>/CLAUDE.local.md
 export type MemoryScope = 'user' | 'project' | 'projectDotClaude' | 'local'
+export type ItemKind = 'skill' | 'command' | 'agent'
+export type ItemScope = 'user' | 'project'
 export type ConfigFileRef =
   | { kind: 'settings'; scope: SettingsScope; cwd?: string } // cwd required unless scope === 'user'
   | { kind: 'memory'; scope: MemoryScope; cwd?: string }
+  | { kind: ItemKind; scope: ItemScope; cwd?: string; name: string } // cwd required for project
+  | { kind: ItemKind; scope: 'plugin'; plugin: string; name: string } // read-only
 export interface ConfigSnapshot {
   ref: ConfigFileRef
   path: string
@@ -14,9 +18,48 @@ export interface ConfigSnapshot {
   hash: string | null
   mtimeMs?: number
 }
-export type ConfigErrorCode = 'conflict' | 'invalid_json' | 'not_object' | 'bad_ref' | 'io'
+export type ConfigErrorCode =
+  | 'conflict'
+  | 'invalid_json'
+  | 'not_object'
+  | 'bad_ref'
+  | 'io'
+  | 'invalid_frontmatter'
+  | 'read_only'
+  | 'exists'
+  | 'not_found'
+  | 'bad_name'
 export type ConfigWriteResult =
   | { ok: true; snapshot: ConfigSnapshot; backupPath?: string }
+  | { ok: false; code: ConfigErrorCode; message: string; current?: ConfigSnapshot }
+
+export interface ConfigItemSummary {
+  ref: ConfigFileRef
+  kind: ItemKind
+  scope: ItemScope | 'plugin'
+  /** skill dir / command rel path ('a/b') / agent stem */
+  name: string
+  plugin?: string
+  pluginVersion?: string
+  /** display only */
+  path: string
+  description?: string
+  frontmatterName?: string
+  /** skills: other files in the dir, relative, max 50 */
+  files?: string[]
+  /** frontmatter parse error or unreadable file */
+  error?: string
+  mtimeMs?: number
+  readOnly: boolean
+}
+export interface ConfigItemList {
+  kind: ItemKind
+  items: ConfigItemSummary[]
+  roots: Array<{ scope: ItemScope; path: string; exists: boolean }>
+  pluginsKnown: boolean
+}
+export type ItemMutationResult =
+  | { ok: true; ref: ConfigFileRef; snapshot?: ConfigSnapshot; trashPath?: string; backupPath?: string }
   | { ok: false; code: ConfigErrorCode; message: string; current?: ConfigSnapshot }
 
 export type ResolvedSource = 'user' | 'project' | 'local' | 'flag' | 'managed'
@@ -79,8 +122,8 @@ export interface PtyExitPayload {
 }
 
 export interface FsChangedPayload {
-  kind: 'settings' | 'memory' | 'mcp'
-  scope?: SettingsScope | MemoryScope | McpScope
+  kind: 'settings' | 'memory' | 'mcp' | ItemKind
+  scope?: SettingsScope | MemoryScope | McpScope | ItemScope
   cwd?: string
   path: string
 }
@@ -88,4 +131,5 @@ export interface ModelOption {
   value: string
   displayName: string
   description?: string
+  resolvedModel?: string
 }

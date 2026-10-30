@@ -2,9 +2,13 @@ import { z } from 'zod'
 import { McpServerConfigSchema } from './config-schemas'
 import type {
   ConfigFileRef,
+  ConfigItemList,
   ConfigSnapshot,
   ConfigWriteResult,
   FsChangedPayload,
+  ItemKind,
+  ItemMutationResult,
+  ItemScope,
   McpListResult,
   McpMutationResult,
   McpTestResult,
@@ -54,12 +58,64 @@ export type HistoryLoadArgs = z.infer<typeof HistoryLoadSchema>
 export const SettingsScopeSchema = z.enum(['user', 'project', 'local'])
 export const MemoryScopeSchema = z.enum(['user', 'project', 'projectDotClaude', 'local'])
 
+// ---- P3: item kinds / names ----
+export const ItemKindSchema = z.enum(['skill', 'command', 'agent'])
+export const ItemScopeSchema = z.enum(['user', 'project'])
+
+const REF_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
+const NEW_SEGMENT = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+/** Max path segments in an item name: commands may be namespaced 3 deep, skills and agents are flat. */
+export function maxItemSegments(kind: 'skill' | 'command' | 'agent'): number {
+  return kind === 'command' ? 3 : 1
+}
+
+/** Existing names (refs): lenient so on-disk files keep working. '/' separates command namespaces; no '..' segment. */
+export function isValidRefName(kind: 'skill' | 'command' | 'agent', name: string): boolean {
+  const segs = name.split('/')
+  return segs.length >= 1 && segs.length <= maxItemSegments(kind) && segs.every((s) => s !== '..' && REF_SEGMENT.test(s))
+}
+
+/** New names (create / rename): strict kebab-case, <= 64 chars. */
+export function isValidNewName(kind: 'skill' | 'command' | 'agent', name: string): boolean {
+  const segs = name.split('/')
+  return name.length <= 64 && segs.length >= 1 && segs.length <= maxItemSegments(kind) && segs.every((s) => NEW_SEGMENT.test(s))
+}
+
+/** Strict new-name rule without a kind (segment count is checked per kind by the schemas that know it). */
+export const NewItemNameSchema = z
+  .string()
+  .max(64)
+  .refine((n) => n.split('/').length <= 3 && n.split('/').every((s) => NEW_SEGMENT.test(s)), {
+    message: 'Use lowercase letters, digits and single hyphens (commands may use up to 3 "/" segments)'
+  })
+
+const OptCwd = z.string().min(1).optional()
+const NEEDS_CWD_SCOPES = new Set(['project', 'local', 'projectDotClaude'])
+
 export const ConfigFileRefSchema = z
-  .discriminatedUnion('kind', [
-    z.object({ kind: z.literal('settings'), scope: SettingsScopeSchema, cwd: z.string().min(1).optional() }),
-    z.object({ kind: z.literal('memory'), scope: MemoryScopeSchema, cwd: z.string().min(1).optional() })
+  .union([
+    z.object({ kind: z.literal('settings'), scope: SettingsScopeSchema, cwd: OptCwd }),
+    z.object({ kind: z.literal('memory'), scope: MemoryScopeSchema, cwd: OptCwd }),
+    z.object({ kind: ItemKindSchema, scope: ItemScopeSchema, cwd: OptCwd, name: z.string().min(1).max(400) }),
+    z.object({
+      kind: ItemKindSchema,
+      scope: z.literal('plugin'),
+      plugin: z.string().regex(/^[A-Za-z0-9_.@-]{1,128}$/),
+      name: z.string().min(1).max(400)
+    })
   ])
-  .refine((r) => r.scope === 'user' || !!r.cwd, { message: 'cwd is required unless scope is user' })
+  .refine((r) => !NEEDS_CWD_SCOPES.has(r.scope) || ('cwd' in r && !!r.cwd), {
+    message: 'cwd is required for project, local and projectDotClaude scopes'
+  })
+  .refine((r) => !('name' in r) || isValidRefName(r.kind as 'skill' | 'command' | 'agent', r.name), {
+    message: 'Invalid item name'
+  })
+
+/** A ref to a user or project item (never settings / memory / plugin). */
+const ItemRefSchema = ConfigFileRefSchema.refine((r) => 'name' in r && r.scope !== 'plugin', {
+  message: 'A non-plugin item ref is required'
+})
 
 export const ConfigReadSchema = z.object({ ref: ConfigFileRefSchema })
 export type ConfigReadArgs = z.infer<typeof ConfigReadSchema>
@@ -76,6 +132,50 @@ export type ConfigWatchProjectArgs = z.infer<typeof ConfigWatchProjectSchema>
 
 export const SettingsResolveSchema = z.object({ cwd: z.string().optional() })
 export type SettingsResolveArgs = z.infer<typeof SettingsResolveSchema>
+
+// ---- P3: items (skills / commands / agents) ----
+export const ItemsListSchema = z.object({ kind: ItemKindSchema, cwd: z.string().min(1).optional() })
+export interface ItemsListArgs {
+  kind: ItemKind
+  cwd?: string
+}
+
+export const ItemsCreateSchema = z
+  .object({
+    kind: ItemKindSchema,
+    scope: ItemScopeSchema,
+    cwd: z.string().min(1).optional(),
+    name: NewItemNameSchema,
+    text: z.string().max(2_000_000)
+  })
+  .refine((a) => a.scope === 'user' || !!a.cwd, { message: 'cwd is required for project scope' })
+  .refine((a) => isValidNewName(a.kind, a.name), { message: 'Invalid item name for this kind', path: ['name'] })
+export interface ItemsCreateArgs {
+  kind: ItemKind
+  scope: ItemScope
+  cwd?: string
+  name: string
+  text: string
+}
+
+export const ItemsRenameSchema = z
+  .object({ ref: ItemRefSchema, newName: NewItemNameSchema, baseHash: z.string(), text: z.string().max(2_000_000).optional() })
+  .refine((a) => isValidNewName(a.ref.kind as ItemKind, a.newName), { message: 'Invalid item name for this kind', path: ['newName'] })
+export interface ItemsRenameArgs {
+  ref: ConfigFileRef
+  newName: string
+  baseHash: string
+  text?: string
+}
+
+export const ItemsDeleteSchema = z.object({ ref: ItemRefSchema, baseHash: z.string() })
+export interface ItemsDeleteArgs {
+  ref: ConfigFileRef
+  baseHash: string
+}
+
+export const SessionStopTaskSchema = z.object({ localId: z.string(), taskId: z.string().min(1) })
+export type SessionStopTaskArgs = z.infer<typeof SessionStopTaskSchema>
 
 // ---- P2: MCP ----
 export const McpScopeSchema = z.enum(['user', 'project', 'local'])
@@ -142,6 +242,13 @@ export interface CcwrapApi {
     permissionReply(args: PermissionReplyArgs): Promise<void>
     onEvent(cb: (p: SessionEventPayload) => void): () => void
     supportedModels(localId: string): Promise<ModelOption[]>
+    stopTask(localId: string, taskId: string): Promise<void>
+  }
+  items: {
+    list(args: ItemsListArgs): Promise<ConfigItemList>
+    create(args: ItemsCreateArgs): Promise<ItemMutationResult>
+    rename(args: ItemsRenameArgs): Promise<ItemMutationResult>
+    delete(args: ItemsDeleteArgs): Promise<ItemMutationResult>
   }
   dialog: { pickDirectory(): Promise<string | null> }
   history: {

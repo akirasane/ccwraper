@@ -33,5 +33,11 @@ export const IpcChannels = {
   /** main -> renderer events */
   ptyData: 'pty:data',
   ptyExit: 'pty:exit',
-  fsChanged: 'fs:changed'
+  fsChanged: 'fs:changed',
+  // ---- P3 ----
+  sessionStopTask: 'session:stopTask',
+  itemsList: 'items:list',
+  itemsCreate: 'items:create',
+  itemsRename: 'items:rename',
+  itemsDelete: 'items:delete'
 } as const

@@ -23,7 +23,14 @@ const api: CcwrapApi = {
       ipcRenderer.on(IpcChannels.sessionEvent, h)
       return () => ipcRenderer.removeListener(IpcChannels.sessionEvent, h)
     },
-    supportedModels: (id) => ipcRenderer.invoke(IpcChannels.sessionSupportedModels, id)
+    supportedModels: (id) => ipcRenderer.invoke(IpcChannels.sessionSupportedModels, id),
+    stopTask: (localId, taskId) => ipcRenderer.invoke(IpcChannels.sessionStopTask, { localId, taskId })
+  },
+  items: {
+    list: (args) => ipcRenderer.invoke(IpcChannels.itemsList, args),
+    create: (args) => ipcRenderer.invoke(IpcChannels.itemsCreate, args),
+    rename: (args) => ipcRenderer.invoke(IpcChannels.itemsRename, args),
+    delete: (args) => ipcRenderer.invoke(IpcChannels.itemsDelete, args)
   },
   dialog: { pickDirectory: () => ipcRenderer.invoke(IpcChannels.pickDirectory) },
   history: {

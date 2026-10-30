@@ -14,6 +14,8 @@ export interface Usage {
 
 export type SessionStatus = 'idle' | 'running' | 'waiting_permission' | 'error'
 
+export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed' | 'paused'
+
 export type SessionEvent =
   | {
       t: 'init'
@@ -24,6 +26,9 @@ export type SessionEvent =
       slashCommands: string[]
       cwd: string
       permissionMode?: string
+      agents?: string[]
+      skills?: string[]
+      plugins?: { name: string; path: string; version?: string }[]
     }
   /** History replay only; live prompts are added optimistically by the renderer. */
   | { t: 'user_message'; text: string; uuid?: string }
@@ -44,8 +49,58 @@ export type SessionEvent =
       resultText?: string
       /** Context window of the session model (from SDK modelUsage); undefined when unknown. */
       contextWindow?: number
+      durationApiMs?: number
+      /** Sum over result.modelUsage (cumulative session, main + subagents). */
+      sessionUsage?: Usage & { costUsd: number; thinkingTokens?: number }
     }
   | { t: 'error'; message: string }
+  | {
+      t: 'usage_live'
+      /** latest main-thread call: prompt (input + cache read + cache creation), exact */
+      contextTokens: number
+      /** output of that call: exact after its message_delta, else estimated */
+      contextOutputTokens: number
+      contextExact: boolean
+      /** sum over this turn's calls (main + subagent streams) */
+      turn: Usage
+      exact: boolean
+      apiCalls: number
+    }
+  | {
+      t: 'task_started'
+      taskId: string
+      toolUseId?: string
+      description: string
+      subagentType?: string
+      taskType?: string
+      parentTaskId?: string
+      depth?: number
+      background?: boolean
+      ambient?: boolean
+      hidden?: boolean
+    }
+  | {
+      t: 'task_progress'
+      taskId: string
+      toolUseId?: string
+      totalTokens: number
+      toolUses: number
+      durationMs: number
+      lastToolName?: string
+      summary?: string
+    }
+  | { t: 'task_updated'; taskId: string; status?: TaskStatus; description?: string; error?: string; background?: boolean }
+  | {
+      t: 'task_ended'
+      taskId: string
+      toolUseId?: string
+      status: 'completed' | 'failed' | 'stopped'
+      summary?: string
+      totalTokens?: number
+      toolUses?: number
+      durationMs?: number
+    }
+  | { t: 'tool_progress'; toolUseId: string; toolName: string; parentToolUseId?: string; elapsedMs: number; taskId?: string }
 
 // ---- WP0 frozen contracts (history / app info). Change only via the lead. ----
 
