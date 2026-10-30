@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
+import type { SessionEvent } from '../../shared/events'
+import { PluginRegistry } from './plugin-registry'
 import { SessionManager } from './session-manager'
 import type { AdapterSession } from './sdk-adapter'
 
@@ -12,11 +14,58 @@ function fakeAdapter(): AdapterSession {
     setModel: vi.fn(async () => {}),
     setPermissionMode: vi.fn(async () => {}),
     supportedModels: vi.fn(async () => [{ value: 'sonnet', displayName: 'Sonnet' }]),
+    stopTask: vi.fn(async () => {}),
     replyPermission: vi.fn(),
     done: new Promise<void>(() => {}),
     close: vi.fn()
   }
 }
+
+describe('SessionManager live activity wiring', () => {
+  it('stopTask reaches the adapter', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ccwrap-'))
+    try {
+      const adapter = fakeAdapter()
+      const m = new SessionManager(() => {}, { startSession: vi.fn(async () => adapter) })
+      const { localId } = await m.start({ cwd: dir, prompt: 'hi' })
+      await m.stopTask(localId, 'task-1')
+      expect(adapter.stopTask).toHaveBeenCalledWith('task-1')
+      expect(() => m.stopTask('nope', 't')).toThrow(/Unknown/)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('feeds the plugin registry from init and still emits the event', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ccwrap-'))
+    try {
+      const registry = new PluginRegistry()
+      const emitted: unknown[] = []
+      const startSession = vi.fn(async (o: { onEvent: (e: SessionEvent) => void }) => {
+        o.onEvent({
+          t: 'init',
+          sessionId: 's',
+          model: 'm',
+          tools: [],
+          mcp: [],
+          slashCommands: [],
+          cwd: dir,
+          plugins: [{ name: 'p1', path: 'C:\\fixture\\p1', version: '1.0.0' }]
+        })
+        return fakeAdapter()
+      })
+      const m = new SessionManager((_id, e) => emitted.push(e), {
+        startSession: startSession as never,
+        registry
+      })
+      await m.start({ cwd: dir, prompt: 'hi' })
+      expect(registry.get('p1')).toEqual({ name: 'p1', path: 'C:\\fixture\\p1', version: '1.0.0' })
+      expect(emitted).toHaveLength(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 describe('SessionManager', () => {
   it('rejects a missing cwd with a friendly error and never starts the SDK', async () => {

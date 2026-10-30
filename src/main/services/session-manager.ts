@@ -54,7 +54,10 @@ export class SessionManager {
         ...(args.resumeId ? { resumeId: args.resumeId } : {}),
         ...(args.fork ? { fork: args.fork } : {}),
         onEvent: (e) => {
-          if (e.t === 'init') live.sdkSessionId = e.sessionId
+          if (e.t === 'init') {
+            live.sdkSessionId = e.sessionId
+            if (e.plugins) this.deps.registry?.update(e.plugins)
+          }
           this.emit(localId, e)
         }
       })
@@ -93,6 +96,9 @@ export class SessionManager {
     const models = await this.get(localId).adapter.supportedModels()
     this.modelsCache = models
     return models
+  }
+  stopTask(localId: string, taskId: string): Promise<void> {
+    return this.get(localId).adapter.stopTask(taskId)
   }
   permissionReply(a: PermissionReplyArgs): void {
     this.get(a.localId).adapter.replyPermission(a.reqId, a.decision, a.remember, a.updatedInput)

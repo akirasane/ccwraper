@@ -50,6 +50,8 @@ export interface AdapterSession {
   setModel(model: string): Promise<void>
   setPermissionMode(mode: PermissionModeName): Promise<void>
   supportedModels(): Promise<ModelOption[]>
+  /** Stop one background task / subagent; the CLI answers with task_notification status `stopped`. */
+  stopTask(taskId: string): Promise<void>
   replyPermission(
     reqId: string,
     decision: 'allow' | 'deny',
@@ -180,8 +182,180 @@ function pickContextWindow(m: { modelUsage?: unknown }, model: string | undefine
   return all.length ? Math.max(...all) : undefined
 }
 
+export type UsageLiveEvent = Extract<SessionEvent, { t: 'usage_live' }>
+
+interface CallRec {
+  usage: Usage
+  startOut: number
+  chars: number
+  thinkingEst: number
+  outExact?: number
+}
+
+export interface AccumulatorOptions {
+  emit: (e: UsageLiveEvent) => void
+  now?: () => number
+  setTimer?: (fn: () => void, ms: number) => unknown
+  clearTimer?: (h: unknown) => void
+  intervalMs?: number
+}
+
+/**
+ * Per-turn token accounting (D2). Calls are keyed by (parent, message id). Output is an estimate
+ * (ceil(chars / 4), or the thinking_tokens estimate when larger) until the call's message_delta
+ * delivers the exact value. Context = the latest MAIN-thread call. Emission: immediately on
+ * message_start / message_delta, throttled (with trailing flush) while deltas stream.
+ */
+export class TurnUsageAccumulator {
+  private calls = new Map<string, CallRec>()
+  private current = new Map<string, CallRec>()
+  private lastEmit = Number.NEGATIVE_INFINITY
+  private timer: unknown = undefined
+  private stopped = false
+  private readonly now: () => number
+  private readonly setTimer: (fn: () => void, ms: number) => unknown
+  private readonly clearTimer: (h: unknown) => void
+  private readonly intervalMs: number
+
+  constructor(private readonly o: AccumulatorOptions) {
+    this.now = o.now ?? Date.now
+    this.setTimer = o.setTimer ?? ((fn, ms) => setTimeout(fn, ms))
+    this.clearTimer = o.clearTimer ?? ((h) => clearTimeout(h as ReturnType<typeof setTimeout>))
+    this.intervalMs = o.intervalMs ?? 250
+  }
+
+  reset(): void {
+    this.cancelTimer()
+    this.calls.clear()
+    this.current.clear()
+    this.lastEmit = Number.NEGATIVE_INFINITY
+    this.stopped = false
+  }
+
+  messageStart(parent: string, id: string, usage: unknown): void {
+    if (this.stopped) return
+    const u = mapUsage(usage)
+    const rec: CallRec = { usage: u, startOut: u.outputTokens, chars: 0, thinkingEst: 0 }
+    this.calls.set(`${parent}\u0000${id}`, rec)
+    this.current.set(parent, rec)
+    this.emitNow()
+  }
+
+  /** Streamed characters (text, thinking, partial_json) for the current call of this parent. */
+  delta(parent: string, chars: number): void {
+    if (this.stopped) return
+    const rec = this.current.get(parent)
+    if (!rec || rec.outExact !== undefined) return
+    rec.chars += chars
+    this.throttled()
+  }
+
+  messageDelta(parent: string, usage: unknown): void {
+    if (this.stopped) return
+    const rec = this.current.get(parent)
+    const out = (usage as { output_tokens?: unknown } | undefined)?.output_tokens
+    if (!rec || typeof out !== 'number') return
+    rec.outExact = out
+    this.emitNow()
+  }
+
+  /** `system thinking_tokens` (main thread): running estimate for the redacted-thinking phase. */
+  thinkingTokens(estimated: number): void {
+    if (this.stopped) return
+    const rec = this.current.get('')
+    if (!rec || rec.outExact !== undefined) return
+    rec.thinkingEst = Math.max(rec.thinkingEst, estimated)
+    this.throttled()
+  }
+
+  /** Flush a pending trailing emit and ignore further input until reset(). */
+  finish(): void {
+    if (this.timer !== undefined) this.emitNow()
+    this.stopped = true
+  }
+
+  snapshot(): UsageLiveEvent {
+    const turn: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }
+    let exact = true
+    for (const r of this.calls.values()) {
+      turn.inputTokens += r.usage.inputTokens
+      turn.cacheReadTokens += r.usage.cacheReadTokens
+      turn.cacheCreationTokens += r.usage.cacheCreationTokens
+      turn.outputTokens += outOf(r)
+      if (r.outExact === undefined) exact = false
+    }
+    const main = this.current.get('')
+    return {
+      t: 'usage_live',
+      contextTokens: main ? promptOf(main) : 0,
+      contextOutputTokens: main ? outOf(main) : 0,
+      contextExact: main ? main.outExact !== undefined : false,
+      turn,
+      exact,
+      apiCalls: this.calls.size
+    }
+  }
+
+  private cancelTimer(): void {
+    if (this.timer !== undefined) {
+      this.clearTimer(this.timer)
+      this.timer = undefined
+    }
+  }
+
+  private emitNow(): void {
+    this.cancelTimer()
+    this.lastEmit = this.now()
+    this.o.emit(this.snapshot())
+  }
+
+  private throttled(): void {
+    const wait = this.intervalMs - (this.now() - this.lastEmit)
+    if (wait <= 0) this.emitNow()
+    else if (this.timer === undefined) {
+      this.timer = this.setTimer(() => {
+        this.timer = undefined
+        this.emitNow()
+      }, wait)
+    }
+  }
+}
+
+function promptOf(r: CallRec): number {
+  return r.usage.inputTokens + r.usage.cacheReadTokens + r.usage.cacheCreationTokens
+}
+function outOf(r: CallRec): number {
+  return r.outExact ?? Math.max(Math.ceil(r.chars / 4), r.thinkingEst, r.startOut)
+}
+
+export interface MapState {
+  /** Main-thread message id (subagent streams never touch it). */
+  msgId: string
+  model?: string
+  acc?: TurnUsageAccumulator
+}
+
+/** Sum result.modelUsage over models (cumulative session, main + subagents). */
+function sumModelUsage(modelUsage: unknown): (Usage & { costUsd: number; thinkingTokens?: number }) | undefined {
+  const entries = Object.values((modelUsage ?? {}) as Record<string, Record<string, unknown>>)
+  if (!entries.length) return undefined
+  const num = (o: Record<string, unknown>, k: string): number => (typeof o[k] === 'number' ? (o[k] as number) : 0)
+  const sum = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0, costUsd: 0 }
+  let thinking: number | undefined
+  for (const u of entries) {
+    if (!u || typeof u !== 'object') continue
+    sum.inputTokens += num(u, 'inputTokens')
+    sum.outputTokens += num(u, 'outputTokens')
+    sum.cacheReadTokens += num(u, 'cacheReadInputTokens')
+    sum.cacheCreationTokens += num(u, 'cacheCreationInputTokens')
+    sum.costUsd += num(u, 'costUSD')
+    if (typeof u['thinkingTokens'] === 'number') thinking = (thinking ?? 0) + (u['thinkingTokens'] as number)
+  }
+  return thinking !== undefined ? { ...sum, thinkingTokens: thinking } : sum
+}
+
 /** Translate one SDK message into zero or more normalized events. Exported for tests/spike. */
-export function mapMessage(m: SDKMessage, state: { msgId: string; model?: string }): SessionEvent[] {
+export function mapMessage(m: SDKMessage, state: MapState): SessionEvent[] {
   const out: SessionEvent[] = []
   switch (m.type) {
     case 'system': {
@@ -195,23 +369,112 @@ export function mapMessage(m: SDKMessage, state: { msgId: string; model?: string
           mcp: m.mcp_servers.map((s) => ({ name: s.name, status: s.status })),
           slashCommands: m.slash_commands,
           cwd: m.cwd,
-          permissionMode: m.permissionMode
+          permissionMode: m.permissionMode,
+          ...(Array.isArray(m.agents) ? { agents: m.agents } : {}),
+          ...(Array.isArray(m.skills) ? { skills: m.skills } : {}),
+          ...(Array.isArray(m.plugins)
+            ? {
+                plugins: m.plugins.map((p) => ({
+                  name: p.name,
+                  path: p.path,
+                  ...(p.version ? { version: p.version } : {})
+                }))
+              }
+            : {})
+        })
+      } else if (m.subtype === 'thinking_tokens') {
+        state.acc?.thinkingTokens(m.estimated_tokens)
+      } else if (m.subtype === 'task_started') {
+        out.push({
+          t: 'task_started',
+          taskId: m.task_id,
+          description: m.description,
+          ...(m.tool_use_id ? { toolUseId: m.tool_use_id } : {}),
+          ...(m.subagent_type ? { subagentType: m.subagent_type } : {}),
+          ...(m.task_type ? { taskType: m.task_type } : {}),
+          ...(m.parent_task_id ? { parentTaskId: m.parent_task_id } : {}),
+          ...(typeof m.spawn_depth === 'number' ? { depth: m.spawn_depth } : {}),
+          ...(typeof m.is_backgrounded === 'boolean' ? { background: m.is_backgrounded } : {}),
+          ...(m.ambient ? { ambient: true } : {}),
+          ...(m.skip_transcript ? { hidden: true } : {})
+        })
+      } else if (m.subtype === 'task_progress') {
+        out.push({
+          t: 'task_progress',
+          taskId: m.task_id,
+          totalTokens: m.usage.total_tokens,
+          toolUses: m.usage.tool_uses,
+          durationMs: m.usage.duration_ms,
+          ...(m.tool_use_id ? { toolUseId: m.tool_use_id } : {}),
+          ...(m.last_tool_name ? { lastToolName: m.last_tool_name } : {}),
+          ...(m.summary ? { summary: m.summary } : {})
+        })
+      } else if (m.subtype === 'task_updated') {
+        const p = m.patch
+        out.push({
+          t: 'task_updated',
+          taskId: m.task_id,
+          ...(p.status ? { status: p.status } : {}),
+          ...(p.description ? { description: p.description } : {}),
+          ...(p.error ? { error: p.error } : {}),
+          ...(typeof p.is_backgrounded === 'boolean' ? { background: p.is_backgrounded } : {})
+        })
+      } else if (m.subtype === 'task_notification') {
+        out.push({
+          t: 'task_ended',
+          taskId: m.task_id,
+          status: m.status,
+          ...(m.tool_use_id ? { toolUseId: m.tool_use_id } : {}),
+          ...(m.summary ? { summary: m.summary } : {}),
+          ...(m.usage
+            ? { totalTokens: m.usage.total_tokens, toolUses: m.usage.tool_uses, durationMs: m.usage.duration_ms }
+            : {})
         })
       }
+      // background_tasks_changed and the rest: intentionally not mapped (D4).
+      break
+    }
+    case 'tool_progress': {
+      out.push({
+        t: 'tool_progress',
+        toolUseId: m.tool_use_id,
+        toolName: m.tool_name,
+        elapsedMs: Math.round(m.elapsed_time_seconds * 1000),
+        ...(m.parent_tool_use_id ? { parentToolUseId: m.parent_tool_use_id } : {}),
+        ...(m.task_id ? { taskId: m.task_id } : {})
+      })
       break
     }
     case 'stream_event': {
       const ev = m.event as unknown as {
         type: string
-        message?: { id?: string }
-        delta?: { type?: string; text?: string; thinking?: string }
+        message?: { id?: string; usage?: unknown }
+        delta?: { type?: string; text?: string; thinking?: string; partial_json?: string }
+        usage?: unknown
       }
-      if (ev.type === 'message_start' && ev.message?.id) state.msgId = ev.message.id
-      else if (ev.type === 'content_block_delta' && ev.delta) {
-        if (ev.delta.type === 'text_delta' && ev.delta.text)
-          out.push({ t: 'text_delta', msgId: state.msgId, text: ev.delta.text })
-        else if (ev.delta.type === 'thinking_delta' && ev.delta.thinking)
-          out.push({ t: 'thinking_delta', msgId: state.msgId, text: ev.delta.thinking })
+      // Main thread = no parent. Subagent streams only feed the accumulator, never the transcript (D4).
+      const parentKey = m.parent_tool_use_id ?? ''
+      if (ev.type === 'message_start' && ev.message?.id) {
+        if (!parentKey) state.msgId = ev.message.id
+        state.acc?.messageStart(parentKey, ev.message.id, ev.message.usage)
+      } else if (ev.type === 'message_delta') {
+        state.acc?.messageDelta(parentKey, ev.usage)
+      } else if (ev.type === 'content_block_delta' && ev.delta) {
+        const d = ev.delta
+        const chars =
+          d.type === 'text_delta'
+            ? (d.text?.length ?? 0)
+            : d.type === 'thinking_delta'
+              ? (d.thinking?.length ?? 0)
+              : d.type === 'input_json_delta'
+                ? (d.partial_json?.length ?? 0)
+                : 0
+        if (chars) state.acc?.delta(parentKey, chars)
+        if (!parentKey) {
+          if (d.type === 'text_delta' && d.text) out.push({ t: 'text_delta', msgId: state.msgId, text: d.text })
+          else if (d.type === 'thinking_delta' && d.thinking)
+            out.push({ t: 'thinking_delta', msgId: state.msgId, text: d.thinking })
+        }
       }
       break
     }
@@ -254,6 +517,7 @@ export function mapMessage(m: SDKMessage, state: { msgId: string; model?: string
     }
     case 'result': {
       const contextWindow = pickContextWindow(m as { modelUsage?: unknown }, state.model)
+      const sessionUsage = sumModelUsage((m as { modelUsage?: unknown }).modelUsage)
       out.push({
         t: 'result',
         costUsd: m.total_cost_usd,
@@ -261,6 +525,8 @@ export function mapMessage(m: SDKMessage, state: { msgId: string; model?: string
         turns: m.num_turns,
         usage: mapUsage(m.usage),
         isError: m.is_error,
+        ...(typeof m.duration_api_ms === 'number' ? { durationApiMs: m.duration_api_ms } : {}),
+        ...(sessionUsage ? { sessionUsage } : {}),
         ...(contextWindow ? { contextWindow } : {}),
         ...(m.subtype === 'success' ? { resultText: m.result } : {})
       })
@@ -313,7 +579,8 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
   input.push(opts.prompt)
   opts.onEvent({ t: 'status', state: 'running' })
   const q: Query = queryFn({ prompt: input, options })
-  const state: { msgId: string; model?: string } = { msgId: '' }
+  const acc = new TurnUsageAccumulator({ emit: (e) => opts.onEvent(e) })
+  const state: MapState = { msgId: '', acc }
   let interrupted = false
   let running = true
 
@@ -321,6 +588,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
     try {
       for await (const m of q) {
         opts.onRaw?.(m)
+        if (m.type === 'result') acc.finish()
         for (const e of mapMessage(m, state)) {
           // An interrupted turn ends with an error-subtype result; present it as idle, not error.
           if (interrupted && e.t === 'status' && e.state === 'error') opts.onEvent({ t: 'status', state: 'idle' })
@@ -338,6 +606,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
   return {
     send(text) {
       running = true
+      acc.reset()
       opts.onEvent({ t: 'status', state: 'running' })
       input.push(text)
     },
@@ -359,9 +628,11 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
       return models.map((m) => ({
         value: m.value,
         displayName: m.displayName,
-        ...(m.description ? { description: m.description } : {})
+        ...(m.description ? { description: m.description } : {}),
+        ...(m.resolvedModel ? { resolvedModel: m.resolvedModel } : {})
       }))
     },
+    stopTask: (taskId) => q.stopTask(taskId),
     replyPermission(reqId, decision, remember, updatedInput) {
       const p = pending.get(reqId)
       if (!p) return

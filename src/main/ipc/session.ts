@@ -32,9 +32,9 @@ export function registerSessionIpc(manager: SessionManager): Disposer {
   ipcMain.handle(IpcChannels.sessionSupportedModels, (_e, id: unknown): Promise<ModelOption[]> =>
     manager.supportedModels(String(id))
   )
-  // WP0 STUB: WP1 wires this to manager.stopTask.
-  ipcMain.handle(IpcChannels.sessionStopTask, async (_e, raw: unknown): Promise<void> => {
-    SessionStopTaskSchema.parse(raw)
+  ipcMain.handle(IpcChannels.sessionStopTask, (_e, raw: unknown): Promise<void> => {
+    const a = SessionStopTaskSchema.parse(raw)
+    return manager.stopTask(a.localId, a.taskId)
   })
   ipcMain.handle(IpcChannels.pickDirectory, async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
