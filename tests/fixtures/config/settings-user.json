@@ -1,0 +1,5 @@
+{
+  "model": "opus",
+  "permissions": { "allow": ["Read(*)"], "defaultMode": "default" },
+  "env": { "FROM_USER": "1" }
+}

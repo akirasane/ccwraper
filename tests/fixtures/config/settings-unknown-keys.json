@@ -1,0 +1,10 @@
+{
+  "zzFutureKey": { "nested": [1, 2, { "a": true }] },
+  "model": "sonnet",
+  "permissions": {
+    "allow": ["Bash(npm test:*)"],
+    "futureField": "keep-me"
+  },
+  "env": { "FIXTURE_TOKEN": "not-a-secret" },
+  "aaLastKey": null
+}

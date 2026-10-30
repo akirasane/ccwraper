@@ -1,0 +1,15 @@
+{
+  "numStartups": 1,
+  "userID": "fixture-user",
+  "mcpServers": { "user-srv": { "command": "node", "args": ["a.js"] } },
+  "projects": {
+    "C:/fixture/proj": {
+      "allowedTools": [],
+      "mcpServers": { "local-srv": { "command": "node" } },
+      "enabledMcpjsonServers": ["proj-srv"],
+      "disabledMcpjsonServers": [],
+      "lastCost": 0.5
+    },
+    "C:/fixture/other": { "mcpServers": { "other-srv": { "command": "x" } } }
+  }
+}
