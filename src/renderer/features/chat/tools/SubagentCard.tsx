@@ -73,11 +73,11 @@ export function SubagentCard({ convId, toolUseId, depth = 0, renderItem }: Subag
     return c ? selectChildItems(c, toolUseId) : EMPTY
   })
   const childTools = useChatStore((s) => s.convs[convId]?.tools)
-  const convStatus = useChatStore((s) => s.convs[convId]?.status)
+  const convClosed = useChatStore((s) => s.convs[convId]?.closed)
   const [userOpen, setUserOpen] = React.useState<boolean | null>(null)
   const [showAll, setShowAll] = React.useState(false)
 
-  const lost = task ? isLostTask(convStatus, task) : false
+  const lost = task ? isLostTask(convClosed, task) : false
   // The task events decide, not the spawning tool call (a background agent outlives its tool_result).
   const live = task ? isLiveTask(task) && !lost : tool?.status === 'running' || tool?.status === 'needs_approval'
   const now = useNow(live)

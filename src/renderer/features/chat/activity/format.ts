@@ -1,4 +1,3 @@
-import type { SessionStatus } from '@shared/events'
 import type { TaskView } from '../model/types'
 
 /** 842 -> "842", 1234 -> "1.2k", 20726 -> "20.7k", 123456 -> "123k", 1.5M -> "1.5M". */
@@ -26,9 +25,8 @@ export const isLiveTask = (t: TaskView): boolean =>
   t.status === 'running' || t.status === 'pending' || t.status === 'stopping' || t.status === 'paused'
 
 /**
- * A task the session can no longer be running: the session errored out, so no task event will ever arrive.
- * Renderer-side rule (there is no explicit "session closed" event): derived, so a later `running` status
- * brings the card back to running.
+ * A task the session can no longer be running: the query loop ended (main emits `session_closed` on a
+ * crash or process exit), so no task event will ever arrive. A failed turn (`result.is_error`) keeps the
+ * session open and does NOT make tasks lost.
  */
-export const isLostTask = (convStatus: SessionStatus | undefined, t: TaskView): boolean =>
-  convStatus === 'error' && isLiveTask(t)
+export const isLostTask = (closed: boolean | undefined, t: TaskView): boolean => closed === true && isLiveTask(t)

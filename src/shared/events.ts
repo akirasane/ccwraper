@@ -54,6 +54,8 @@ export type SessionEvent =
       sessionUsage?: Usage & { costUsd: number; thinkingTokens?: number }
     }
   | { t: 'error'; message: string }
+  /** The SDK query loop ended (process exit / crash / close): no further task events can arrive. */
+  | { t: 'session_closed' }
   | {
       t: 'usage_live'
       /** latest main-thread call: prompt (input + cache read + cache creation), exact */

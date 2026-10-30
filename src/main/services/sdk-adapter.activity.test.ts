@@ -321,5 +321,38 @@ describe('startSdkSession wiring', () => {
     const kinds = events.map((e) => e.t)
     expect(kinds.filter((k) => k === 'usage_live')).toHaveLength(2)
     expect(kinds.indexOf('usage_live')).toBeLessThan(kinds.indexOf('result'))
+    expect(kinds[kinds.length - 1]).toBe('session_closed')
+  })
+
+  it('emits session_closed after a crash (status error) but not after an is_error result', async () => {
+    const run = async (gen: () => AsyncGenerator<SDKMessage>): Promise<SessionEvent[]> => {
+      const events: SessionEvent[] = []
+      const q = Object.assign(gen(), { interrupt: async () => {}, close: () => {} }) as unknown as Query
+      const s = await startSdkSession({ cwd: 'C:\fixture\proj', prompt: 'hi', queryImpl: () => q, onEvent: (e) => events.push(e) })
+      await s.done
+      return events
+    }
+    const crashed = await run(async function* () {
+      yield start('m1', { input_tokens: 1 })
+      throw new Error('process exited with code 1')
+    })
+    expect(crashed.map((e) => e.t).slice(-3)).toEqual(['error', 'status', 'session_closed'])
+    // An is_error result keeps the session open; the loop only ends when the query is closed, which is
+    // also reported (a closed query can run no task), but an is_error result by itself emits no closed event.
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const events: SessionEvent[] = []
+    const q = Object.assign(
+      (async function* (): AsyncGenerator<SDKMessage> {
+        yield msg({ type: 'result', subtype: 'error_during_execution', is_error: true, total_cost_usd: 0, duration_ms: 1, num_turns: 1, usage: {}, modelUsage: {} })
+        await gate
+      })(),
+      { interrupt: async () => {}, close: () => {} }
+    ) as unknown as Query
+    await startSdkSession({ cwd: 'C:\fixture\proj', prompt: 'hi', queryImpl: () => q, onEvent: (e) => events.push(e) })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(events.some((e) => e.t === 'status' && e.state === 'error')).toBe(true)
+    expect(events.some((e) => e.t === 'session_closed')).toBe(false)
+    release()
   })
 })

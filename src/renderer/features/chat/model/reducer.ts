@@ -299,8 +299,10 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
         : conv.tools
       return { ...conv, pending, tools }
     }
+    case 'session_closed':
+      return { ...conv, closed: true }
     case 'status': {
-      const next: ConvState = { ...conv, status: e.state }
+      const next: ConvState = { ...conv, status: e.state, ...(e.state === 'running' && conv.closed ? { closed: false } : {}) }
       // idle after a turn = finished or interrupted; anything unfinished is dead.
       if (e.state === 'idle') {
         if (!conv.turn) {

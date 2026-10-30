@@ -241,12 +241,22 @@ describe('SubagentCard', () => {
   it('marks a still-running task as Lost when the session errored, instead of running forever', () => {
     let c = reduceAll(fresh(), eventFixtures.subagentTurn, T0)
     c = reduce(c, { t: 'status', state: 'error' }, T0 + 1)
+    c = reduce(c, { t: 'session_closed' }, T0 + 2)
     put(c)
     render(<ChatView target={target} />)
     const card = screen.getByTestId('subagent-card')
     expect(within(card).getByText('Lost')).toBeInTheDocument()
     expect(within(card).queryByTestId('subagent-stop')).toBeNull()
     expect(screen.queryByTestId('background-indicator')).toBeNull()
+  })
+
+  it('a failed turn (status error, session still open) does not mark a running task Lost', () => {
+    let c = reduceAll(fresh(), eventFixtures.subagentTurn, T0)
+    c = reduce(c, { t: 'status', state: 'error' }, T0 + 1)
+    put(c)
+    render(<ChatView target={target} />)
+    const card = screen.getByTestId('subagent-card')
+    expect(within(card).queryByText('Lost')).toBeNull()
   })
 
   it('caps a 60-child agent at 50 with "Show 10 earlier"', () => {

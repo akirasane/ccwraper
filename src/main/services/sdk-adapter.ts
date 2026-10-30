@@ -601,6 +601,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
       opts.onEvent({ t: 'error', message: err instanceof Error ? err.message : String(err) })
       opts.onEvent({ t: 'status', state: 'error' })
     }
+    opts.onEvent({ t: 'session_closed' })
   })()
 
   return {

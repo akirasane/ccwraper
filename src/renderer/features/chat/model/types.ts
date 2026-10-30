@@ -128,6 +128,8 @@ export interface ConvState {
   pending: PendingPermission[]
   meta: ConvMeta
   status: SessionStatus
+  /** The session's query loop ended; live tasks can no longer finish (derives "Lost"). */
+  closed?: boolean
   lastResult?: LastResult
   /** Subagent tasks by taskId (P3). */
   tasks: Record<string, TaskView>

@@ -63,8 +63,8 @@ export function WorkingRow({ convId }: { convId: string }): React.JSX.Element | 
     const c = s.convs[convId]
     return c ? selectSubagentTokens(c) : 0
   })
-  const status = useChatStore((s) => s.convs[convId]?.status)
-  const live = tasks.filter((t) => !isLostTask(status, t)).length
+  const closed = useChatStore((s) => s.convs[convId]?.closed)
+  const live = tasks.filter((t) => !isLostTask(closed, t)).length
   const now = useNow(working !== undefined)
 
   const wrap =
