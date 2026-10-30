@@ -1,0 +1,32 @@
+/* Command palette (P4 D7). Width 620, top 96 (10vh on short windows). */
+.ccw-palette {
+  position: fixed;
+  left: 50%;
+  top: 96px;
+  z-index: 50;
+  width: 620px;
+  max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
+  animation: ccw-palette-in 140ms var(--ease-out) both;
+}
+@media (max-height: 760px) {
+  .ccw-palette { top: 10vh; }
+}
+@keyframes ccw-palette-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+.ccw-palette-list {
+  max-height: min(460px, 62vh);
+}
+/* The highlight pill moves with transform only; the first placement is not animated. */
+.ccw-palette-pill {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.ccw-palette-pill[data-still='true'] {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ccw-palette { animation: none; }
+  .ccw-palette-pill { transition: none; }
+}
