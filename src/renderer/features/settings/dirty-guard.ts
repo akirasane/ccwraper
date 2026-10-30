@@ -1,19 +1,24 @@
-// Module-level "settings buffer has unsaved changes" flag. The shell can consult isSettingsDirty()
-// before switching views; the page itself also guards scope switches and window unload.
-let dirty = false
-const listeners = new Set<() => void>()
+import { useDirtyRegistry, setDirty } from '@/stores/dirty-registry'
+
+// "Settings buffer has unsaved changes" flag, kept in the shared dirty registry so the shell can
+// ask before a view or project change. The page itself also guards scope switches and unload.
+const KEY = 'settings'
 
 export function isSettingsDirty(): boolean {
-  return dirty
+  return !!useDirtyRegistry.getState().dirty[KEY]
 }
 
 export function setSettingsDirty(next: boolean): void {
-  if (dirty === next) return
-  dirty = next
-  for (const l of listeners) l()
+  setDirty(KEY, next)
 }
 
 export function subscribeSettingsDirty(cb: () => void): () => void {
-  listeners.add(cb)
-  return () => listeners.delete(cb)
+  let prev = isSettingsDirty()
+  return useDirtyRegistry.subscribe(() => {
+    const now = isSettingsDirty()
+    if (now !== prev) {
+      prev = now
+      cb()
+    }
+  })
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { HistorySessionInfo } from '@shared/events'
 import { useChatStore } from '@/stores/chat-store'
+import { useDirtyRegistry } from '@/stores/dirty-registry'
 
 const STORAGE_KEY = 'ccwrap.lastCwd'
 
@@ -60,9 +61,34 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     set({ cwd, activeConvId: convId, activeTitle: undefined, activeBranch: undefined, loadingSession: false })
   }
 
+  const doOpenSession = async (s: HistorySessionInfo): Promise<void> => {
+    const convId = `hist-${s.sessionId}`
+    const chat = useChatStore.getState()
+    writeLastCwd(s.cwd)
+    set({ cwd: s.cwd, activeConvId: convId, activeTitle: s.title, activeBranch: s.gitBranch, view: 'chat' })
+    if (chat.convs[convId]) return // already open (possibly live): just show it
+    chat.createConv({ convId, cwd: s.cwd, resumeSessionId: s.sessionId })
+    set({ loadingSession: true })
+    try {
+      const events = await window.ccwrap.history.load({ sessionId: s.sessionId, cwd: s.cwd })
+      useChatStore.getState().seedFromHistory(convId, events)
+      if ((s.fileSize ?? 0) > TRUNCATION_BYTES && events.length < TRUNCATION_EVENTS) {
+        useChatStore.getState().setNotice(convId, 'History may be incomplete (large or compacted session)')
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      useChatStore.getState().seedFromHistory(convId, [{ t: 'error', message }])
+    } finally {
+      set({ loadingSession: false })
+    }
+  }
+
   return {
     view: 'chat',
-    setView: (view) => set({ view }),
+    setView: (view) => {
+      if (view === get().view) return
+      useDirtyRegistry.getState().guard(() => set({ view }))
+    },
     terminalOpen: false,
     toggleTerminal: () => set((s) => ({ terminalOpen: !s.terminalOpen })),
     cwd: readLastCwd(),
@@ -70,36 +96,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     loadingSession: false,
 
     selectProject: (cwd) => {
-      writeLastCwd(cwd)
-      startDraft(cwd)
+      const go = (): void => {
+        writeLastCwd(cwd)
+        startDraft(cwd)
+      }
+      // Re-selecting the current project keeps the open page mounted, so it never loses edits.
+      const cur = get().cwd
+      if (cur && cwdKey(cur) === cwdKey(cwd)) go()
+      else useDirtyRegistry.getState().guard(go)
     },
 
     newSession: () => {
       const { cwd } = get()
-      set({ view: 'chat' })
-      if (cwd) startDraft(cwd)
+      useDirtyRegistry.getState().guard(() => {
+        set({ view: 'chat' })
+        if (cwd) startDraft(cwd)
+      })
     },
 
-    openSession: async (s) => {
-      const convId = `hist-${s.sessionId}`
-      const chat = useChatStore.getState()
-      writeLastCwd(s.cwd)
-      set({ cwd: s.cwd, activeConvId: convId, activeTitle: s.title, activeBranch: s.gitBranch, view: 'chat' })
-      if (chat.convs[convId]) return // already open (possibly live): just show it
-      chat.createConv({ convId, cwd: s.cwd, resumeSessionId: s.sessionId })
-      set({ loadingSession: true })
-      try {
-        const events = await window.ccwrap.history.load({ sessionId: s.sessionId, cwd: s.cwd })
-        useChatStore.getState().seedFromHistory(convId, events)
-        if ((s.fileSize ?? 0) > TRUNCATION_BYTES && events.length < TRUNCATION_EVENTS) {
-          useChatStore.getState().setNotice(convId, 'History may be incomplete (large or compacted session)')
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        useChatStore.getState().seedFromHistory(convId, [{ t: 'error', message }])
-      } finally {
-        set({ loadingSession: false })
-      }
+    openSession: (s) => {
+      // Opening a session switches to chat (and maybe project): ask first when a page has unsaved edits.
+      return new Promise<void>((resolve) => {
+        useDirtyRegistry.getState().guard(() => void doOpenSession(s).then(resolve, resolve))
+      })
     },
 
     addFolder: async () => {

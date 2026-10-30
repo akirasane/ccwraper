@@ -16,6 +16,7 @@ import { CodeEditor } from '@/components/editor'
 import { cn } from '@/lib/cn'
 import { configKeys } from '@/lib/config-queries'
 import { Markdown } from '@/features/chat/Markdown'
+import { setDirty } from '@/stores/dirty-registry'
 
 type ViewMode = 'edit' | 'preview' | 'split'
 
@@ -284,6 +285,7 @@ export function MemoryPage({ cwd }: { cwd?: string }): React.JSX.Element {
   const dirtyRef = useRef(false)
   const onDirtyChange = useCallback((d: boolean) => {
     dirtyRef.current = d
+    setDirty('memory', d)
   }, [])
 
   // Without a project, project-level tabs are unavailable.

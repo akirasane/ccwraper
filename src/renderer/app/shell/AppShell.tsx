@@ -6,7 +6,9 @@ import { useFsChangedInvalidation } from '@/lib/config-queries'
 import { initIpcBridge } from '@/lib/ipc-bridge'
 import { queryClient } from '@/lib/query-client'
 import { setTerminalOpener } from '@/lib/terminal-bus'
+import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui'
 import { useChatStore } from '@/stores/chat-store'
+import { useDirtyRegistry } from '@/stores/dirty-registry'
 import { cwdKey, useWorkspaceStore } from '@/stores/workspace-store'
 import { LeftRail } from './LeftRail'
 import { useProjectList } from './ProjectPicker'
@@ -27,6 +29,31 @@ function Notice({ title, body }: { title: string; body: string }): React.JSX.Ele
       <h2 className="text-lg font-medium text-fg">{title}</h2>
       {body && <p className="mt-1 text-base text-fg-3">{body}</p>}
     </div>
+  )
+}
+
+/** Asks before a view or project change throws away unsaved edits (settings, CLAUDE.md). */
+function DiscardGuard(): React.JSX.Element {
+  const pending = useDirtyRegistry((s) => s.pending !== null)
+  const confirm = useDirtyRegistry((s) => s.confirm)
+  const cancel = useDirtyRegistry((s) => s.cancel)
+  return (
+    <Dialog open={pending} onOpenChange={(o) => !o && cancel()}>
+      <DialogContent data-testid="discard-guard">
+        <DialogHeader>
+          <DialogTitle>Discard unsaved changes?</DialogTitle>
+          <DialogDescription>You have unsaved edits. Leaving this view will discard them.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="ghost" onClick={cancel}>
+            Keep editing
+          </Button>
+          <Button variant="danger" onClick={confirm}>
+            Discard
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -139,6 +166,7 @@ function Shell(): React.JSX.Element {
         </div>
       </div>
       <StatusBar />
+      <DiscardGuard />
     </div>
   )
 }
