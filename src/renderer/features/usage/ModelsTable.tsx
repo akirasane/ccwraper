@@ -28,8 +28,9 @@ export function ModelsTable({ summary }: { summary: UsageSummary }): React.JSX.E
                 <th scope="col" className="px-2 py-1 text-right font-medium">Output</th>
                 <th scope="col" className="px-2 py-1 text-right font-medium">Cache</th>
                 <th scope="col" className="w-40 px-2 py-1 text-left font-medium">Total</th>
-                <th scope="col" className="px-2 py-1 text-right font-medium" title="Estimated API-equivalent value of in-app sessions. Not a bill.">
-                  {COST_LABEL}
+                <th scope="col" className="whitespace-nowrap px-2 py-1 text-right font-medium" title="Estimated API-equivalent value of in-app sessions. Not a bill.">
+                  <span aria-hidden>Est. value</span>
+                  <span className="sr-only">{COST_LABEL}</span>
                 </th>
               </tr>
             </thead>
@@ -38,7 +39,7 @@ export function ModelsTable({ summary }: { summary: UsageSummary }): React.JSX.E
                 const total = totalTokens(m.tokens)
                 return (
                   <tr key={m.model} className="border-t border-border">
-                    <th scope="row" className="px-2 py-1.5 text-left font-normal text-fg">
+                    <th scope="row" className="whitespace-nowrap px-2 py-1.5 text-left font-normal text-fg">
                       <span aria-hidden className={`mr-2 inline-block size-2 rounded-sm ${colorOf.get(m.model) ?? 'bg-chart-6'}`} />
                       {m.model}
                     </th>

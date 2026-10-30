@@ -98,7 +98,7 @@ export function UsagePage({ cwd }: { cwd?: string | undefined }): React.JSX.Elem
         <>
           <KpiRow summary={summary} />
           <DailyChart summary={summary} />
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 2xl:grid-cols-2">
             <ProjectsChart summary={summary} />
             <ModelsTable summary={summary} />
           </div>

@@ -23,10 +23,11 @@ export interface Launched {
 }
 
 export function launchApp(opts: LaunchOptions): Launched {
-  const exe = join(repoRoot, 'node_modules', 'electron', 'dist', 'electron.exe')
+  const exe = opts.exe ?? process.env['CCWRAP_SMOKE_EXE'] ?? join(repoRoot, 'node_modules', 'electron', 'dist', 'electron.exe')
+  const packaged = !!(opts.exe ?? process.env['CCWRAP_SMOKE_EXE'])
   const env: NodeJS.ProcessEnv = { ...process.env, ...opts.env }
   delete env['ELECTRON_RUN_AS_NODE']
-  const child = spawn(exe, [repoRoot, `--remote-debugging-port=${opts.port}`, `--user-data-dir=${opts.userDataDir}`], {
+  const child = spawn(exe, [...(packaged ? [] : [repoRoot]), `--remote-debugging-port=${opts.port}`, `--user-data-dir=${opts.userDataDir}`, ...(opts.extraArgs ?? [])], {
     env,
     stdio: 'ignore',
     windowsHide: false
