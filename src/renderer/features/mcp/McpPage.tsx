@@ -11,13 +11,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  toast
+  toast,
+  Tooltip
 } from '@/components/ui'
 import { configKeys } from '@/lib/config-queries'
 import { cwdKey } from '@/stores/workspace-store'
 import { useChatStore } from '@/stores/chat-store'
 import { McpServerDialog, type McpSubmit } from './McpServerDialog'
 import { MASK, patchApproval, SCOPE_LABEL, SCOPE_ORDER, secretKeys, summarize } from './mcp-model'
+
+const APPROVED_NOTE =
+  'Approved in .claude/settings.local.json. `claude mcp list` may still print Pending approval; sessions use this setting.'
 
 type TestState = { running: true } | { running: false; result: McpTestResult }
 
@@ -278,11 +282,22 @@ function ServerRow(props: {
       <div className="flex items-center gap-2">
         <span className="font-mono text-base font-medium text-fg">{s.name}</span>
         <Chip>{s.transport}</Chip>
-        {s.scope === 'project' && s.approval && (
-          <Chip variant={s.approval === 'approved' ? 'ok' : s.approval === 'rejected' ? 'danger' : 'warn'}>
-            {s.approval}
-          </Chip>
-        )}
+        {s.scope === 'project' && s.approval && (() => {
+          const chip = (
+            <Chip variant={s.approval === 'approved' ? 'ok' : s.approval === 'rejected' ? 'danger' : 'warn'}>
+              {s.approval}
+            </Chip>
+          )
+          return s.approval === 'approved' ? (
+            <Tooltip content={APPROVED_NOTE}>
+              <span tabIndex={0} className="rounded-sm focus-visible:outline-2 focus-visible:outline-accent-text">
+                {chip}
+              </span>
+            </Tooltip>
+          ) : (
+            chip
+          )
+        })()}
         {props.live && <Chip variant={liveVariant(props.live)}>{props.live}</Chip>}
         {shadowed && <span className="text-sm text-fg-3">shadowed by {s.shadowedBy}</span>}
         <span className="flex-1" />

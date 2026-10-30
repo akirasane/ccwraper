@@ -81,6 +81,19 @@ describe('McpPage', () => {
     expect(container.textContent).not.toContain(SECRET)
   })
 
+  it('explains approved project servers in a tooltip', async () => {
+    api = makeApi({ servers: [{ ...servers[1]!, approval: 'approved' }] })
+    const user = userEvent.setup()
+    mount()
+    await screen.findByText('beta')
+    await user.tab()
+    const chip = screen.getByText('approved')
+    await user.hover(chip)
+    const tip = await screen.findByRole('tooltip')
+    expect(tip).toHaveTextContent('Approved in .claude/settings.local.json.')
+    expect(tip).toHaveTextContent('may still print Pending approval; sessions use this setting.')
+  })
+
   it('adds a stdio server with env', async () => {
     const user = userEvent.setup()
     mount()
