@@ -49,6 +49,7 @@ function Row({
         {item.description && <span className="line-clamp-2 text-sm text-fg-3">{item.description}</span>}
         <span className="flex flex-wrap gap-1">
           {item.error && <Chip variant="danger">Broken frontmatter</Chip>}
+          {item.warning && !item.error && <Chip variant="warn">{item.warning}</Chip>}
           {chips?.conflict && <Chip variant="danger">Conflict</Chip>}
           {chips?.shadowedBy && <Chip variant="warn">Shadowed by {chips.shadowedBy}</Chip>}
           {chips?.overrides && <Chip variant="ok">Overrides {chips.overrides}</Chip>}

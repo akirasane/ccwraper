@@ -161,8 +161,9 @@ export class ItemsService {
         try {
           const head = await readHead(c.file, FRONTMATTER_READ_BYTES)
           const fm = parseFrontmatter(head)
-          if (fm.error) summary.error = fm.error.message
+          if (fm.error && !fm.lenient) summary.error = fm.error.message
           else {
+            if (fm.lenient) summary.warning = 'Non-strict YAML (the CLI accepts it)'
             if (typeof fm.data['description'] === 'string') summary.description = fm.data['description']
             if (typeof fm.data['name'] === 'string') summary.frontmatterName = fm.data['name']
           }

@@ -1,6 +1,6 @@
 import { Plus, X } from 'lucide-react'
 import { useId, useState } from 'react'
-import { patchFrontmatter, replaceBody, type FmOp, type FrontmatterDoc } from '@shared/frontmatter'
+import { patchFrontmatter, quoteUnsafeScalars, replaceBody, type FmOp, type FrontmatterDoc } from '@shared/frontmatter'
 import { Button, Input, Textarea, Toggle } from '@/components/ui'
 import { editToolList, parseToolList } from './kinds/common'
 import type { ItemField, ItemKindSpec } from './kinds/types'
@@ -190,7 +190,20 @@ export function ItemForm({
   }
   return (
     <div className="flex flex-col gap-4" data-testid="item-form">
-      {broken && (
+      {broken && doc.lenient && (
+        <div role="alert" data-testid="lenient-banner" className="flex flex-wrap items-center gap-2 rounded-md border border-warn-border bg-warn-bg px-3 py-2 text-base text-warn">
+          <span className="min-w-0 flex-1">
+            Non-strict YAML: the CLI accepts it, but {doc.lenient.keys.join(', ')} contain an unquoted &quot;: &quot;. The form is read-only until the values are quoted.
+          </span>
+          <Button size="sm" variant="secondary" onClick={() => onTextChange(quoteUnsafeScalars(text).text)}>
+            Quote values ({doc.lenient.keys.length})
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onOpenRaw}>
+            Open Raw
+          </Button>
+        </div>
+      )}
+      {broken && !doc.lenient && (
         <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-danger-border bg-danger-bg px-3 py-2 text-base text-danger">
           <span className="min-w-0 flex-1">The frontmatter cannot be parsed ({doc.error!.message}). The form is read-only; fix it in Raw.</span>
           <Button size="sm" variant="secondary" onClick={onOpenRaw}>

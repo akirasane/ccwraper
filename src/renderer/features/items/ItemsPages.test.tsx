@@ -157,6 +157,22 @@ describe('editor', () => {
     expect(screen.getByRole('button', { name: /^Save/ })).toBeDisabled()
   })
 
+  it('lenient frontmatter: warning chip instead of Broken, Quote values makes the buffer strict and dirty', async () => {
+    const ref: ConfigFileRef = { kind: 'skill', scope: 'user', name: 'alpha' }
+    lists.skill = [item('skill', 'user', 'alpha', { warning: 'Non-strict YAML (the CLI accepts it)' })]
+    files[refKey(ref)] = snap(ref, '---\nname: alpha\ndescription: Use this agent: when x\n---\nBody\n')
+    mount(<SkillsPage cwd={CWD} />)
+    expect(await screen.findByText('Non-strict YAML (the CLI accepts it)')).toBeInTheDocument()
+    expect(screen.queryByText('Broken frontmatter')).toBeNull()
+    await open('alpha')
+    expect(await screen.findByLabelText('Description')).toBeDisabled()
+    await userEvent.click(screen.getByRole('button', { name: 'Quote values (1)' }))
+    await waitFor(() => expect(screen.getByLabelText('Description')).toBeEnabled())
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
+    expect(screen.getByLabelText('Description')).toHaveValue('Use this agent: when x')
+    expect(screen.getByRole('button', { name: /^Save/ })).toBeEnabled()
+  })
+
   it('a plugin item has no Save / Rename / Delete', async () => {
     lists.skill = [item('skill', 'plugin', 'plug', { plugin: 'pl' })]
     mount(<SkillsPage cwd={CWD} />)

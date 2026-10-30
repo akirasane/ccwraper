@@ -100,6 +100,15 @@ describe('list', () => {
     expect(l).toMatchObject({ items: [], pluginsKnown: false, roots: [{ scope: 'user', exists: false }] })
   })
 
+  it('an unquoted ": " description is a warning, not an error (lenient)', async () => {
+    await put(join(cfgDir(), 'agents', 'lenient.md'), '---\nname: lenient\ndescription: Use this agent: when x\n---\nbody')
+    const l = await svc.list('agent')
+    const it = l.items.find((i) => i.name === 'lenient')!
+    expect(it.error).toBeUndefined()
+    expect(it.warning).toMatch(/Non-strict YAML/)
+    expect(it.description).toBe('Use this agent: when x')
+  })
+
   it('flags broken frontmatter and oversized files without failing the list', async () => {
     await put(join(cfgDir(), 'agents', 'bad.md'), '---\n!!broken\n---\nx')
     await put(join(cfgDir(), 'agents', 'huge.md'), 'x'.repeat(1024 * 1024 + 1))
