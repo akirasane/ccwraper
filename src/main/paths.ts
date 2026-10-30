@@ -140,3 +140,92 @@ export function normalizeCwdKey(p: string): string {
   while (r.length > root.length && /[\\/]$/.test(r)) r = r.slice(0, -1)
   return process.platform === 'win32' ? r.toLowerCase() : r
 }
+
+// ---- P2: config locations (pure; all take env/home so tests never touch the real config) ----
+
+export type EnvLike = Readonly<Record<string, string | undefined>>
+
+/** `$CLAUDE_CONFIG_DIR` when set, else `<home>/.claude`. User settings and memory live here. */
+export function claudeConfigDir(env: EnvLike = process.env, home: string = homedir()): string {
+  const d = env['CLAUDE_CONFIG_DIR']
+  return d ? resolve(d) : join(home, '.claude')
+}
+
+/** The CLI's global state file: `$CLAUDE_CONFIG_DIR/.claude.json` when set, else `<home>/.claude.json`. */
+export function claudeGlobalConfigPath(env: EnvLike = process.env, home: string = homedir()): string {
+  const d = env['CLAUDE_CONFIG_DIR']
+  return d ? join(resolve(d), '.claude.json') : join(home, '.claude.json')
+}
+
+/** Enterprise managed settings file (read-only for us). */
+export function managedSettingsPath(platform: NodeJS.Platform = process.platform): string {
+  if (platform === 'win32') return 'C:\\Program Files\\ClaudeCode\\managed-settings.json'
+  if (platform === 'darwin') return '/Library/Application Support/ClaudeCode/managed-settings.json'
+  return '/etc/claude-code/managed-settings.json'
+}
+
+function needCwd(cwd: string | undefined, what: string): string {
+  if (!cwd) throw new Error(`cwd is required for ${what}`)
+  return cwd
+}
+
+export function settingsFilePath(
+  scope: 'user' | 'project' | 'local',
+  cwd?: string,
+  env: EnvLike = process.env,
+  home: string = homedir()
+): string {
+  if (scope === 'user') return join(claudeConfigDir(env, home), 'settings.json')
+  const dir = join(needCwd(cwd, `${scope} settings`), '.claude')
+  return join(dir, scope === 'project' ? 'settings.json' : 'settings.local.json')
+}
+
+export function memoryFilePath(
+  scope: 'user' | 'project' | 'projectDotClaude' | 'local',
+  cwd?: string,
+  env: EnvLike = process.env,
+  home: string = homedir()
+): string {
+  if (scope === 'user') return join(claudeConfigDir(env, home), 'CLAUDE.md')
+  const root = needCwd(cwd, `${scope} memory`)
+  if (scope === 'project') return join(root, 'CLAUDE.md')
+  if (scope === 'projectDotClaude') return join(root, '.claude', 'CLAUDE.md')
+  return join(root, 'CLAUDE.local.md')
+}
+
+/** Injectable bundle of the above; services take this instead of reading env/os.homedir() themselves. */
+export interface ConfigPaths {
+  configDir: string
+  globalConfigPath: string
+  settingsFile(scope: 'user' | 'project' | 'local', cwd?: string): string
+  memoryFile(scope: 'user' | 'project' | 'projectDotClaude' | 'local', cwd?: string): string
+}
+
+export function createConfigPaths(env: EnvLike = process.env, home: string = homedir()): ConfigPaths {
+  return {
+    configDir: claudeConfigDir(env, home),
+    globalConfigPath: claudeGlobalConfigPath(env, home),
+    settingsFile: (scope, cwd) => settingsFilePath(scope, cwd, env, home),
+    memoryFile: (scope, cwd) => memoryFilePath(scope, cwd, env, home)
+  }
+}
+
+/**
+ * The SDK's bundled claude binary (`@anthropic-ai/claude-agent-sdk-<platform>-<arch>/claude[.exe]`),
+ * found by walking node_modules like readSdkVersions. undefined when not installed.
+ */
+export function bundledClaudePath(platform: NodeJS.Platform = process.platform, arch: string = process.arch): string | undefined {
+  const rel = join('node_modules', '@anthropic-ai', `claude-agent-sdk-${platform}-${arch}`, platform === 'win32' ? 'claude.exe' : 'claude')
+  const starts = [process.cwd(), typeof __dirname === 'string' ? __dirname : undefined].filter((x): x is string => !!x)
+  for (const start of starts) {
+    let dir = start
+    for (;;) {
+      const p = join(dir, rel)
+      if (existsSync(p)) return p
+      const up = dirname(dir)
+      if (up === dir) break
+      dir = up
+    }
+  }
+  return undefined
+}
