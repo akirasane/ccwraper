@@ -260,3 +260,12 @@ describe('lazy chunk', () => {
     }
   })
 })
+
+describe('input focus ring', () => {
+  it('the search input suppresses the global :focus-visible ring (it was clipped by the panel)', async () => {
+    setup()
+    act(() => usePaletteStore.setState({ open: true }))
+    const input = await screen.findByRole('combobox')
+    expect(input.style.boxShadow).toBe('none')
+  })
+})

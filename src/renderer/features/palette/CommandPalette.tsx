@@ -146,6 +146,7 @@ function PaletteBody({ onClose }: { onClose: () => void }): React.JSX.Element {
           placeholder="Type a command, session, project..."
           spellCheck={false}
           autoComplete="off"
+          style={{ boxShadow: 'none' }}
           className="h-full min-w-0 flex-1 bg-transparent text-md text-fg outline-none placeholder:text-fg-3"
         />
         <Kbd>Esc</Kbd>

@@ -81,9 +81,11 @@ export function MessageList({ convId, cwd }: { convId: string; cwd?: string }): 
       className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
     >
       {items.length === 0 ? (
-        <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-base text-fg-3">
-          {hasQueryClient && <FirstRunCard {...(cwd ? { cwd } : {})} />}
-          <span>Send a message to start the session.</span>
+        <div className="flex min-h-full flex-col items-center px-6 py-4 text-base text-fg-3">
+          <div className="my-auto flex w-full flex-col items-center gap-4">
+            {hasQueryClient && <FirstRunCard {...(cwd ? { cwd } : {})} />}
+            <span>Send a message to start the session.</span>
+          </div>
         </div>
       ) : (
         <div
