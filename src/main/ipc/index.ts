@@ -1,4 +1,5 @@
 import type { SessionManager } from '../services/session-manager'
+import { registerAutoResumeIpc } from './autoresume'
 import { registerAppIpc } from './app'
 import type { AppIpcDeps } from './app'
 import { registerConfigIpc } from './config'
@@ -32,6 +33,8 @@ export interface IpcDeps {
   hotkey: PrefsIpcDeps['hotkey']
   usage: Pick<UsageService, 'summary'>
   git: Pick<GitService, 'status' | 'diff' | 'log'>
+  /** WP14 sink for renderer auto-resume reports (optional so older callers keep working). */
+  autoResume?: Parameters<typeof registerAutoResumeIpc>[0]
 }
 
 /** Registers every IPC handler. Returns one disposer that index.ts calls on quit. */
@@ -43,6 +46,7 @@ export function registerIpc(deps: IpcDeps): Disposer {
     registerPrefsIpc({ prefs: deps.prefs, hotkey: deps.hotkey, send: deps.send }),
     registerUsageIpc(deps.usage),
     registerGitIpc(deps.git),
+    deps.autoResume ? registerAutoResumeIpc(deps.autoResume) : () => {},
     registerConfigIpc({ send: deps.send, registry: deps.registry }),
     registerItemsIpc({ send: deps.send, registry: deps.registry }),
     registerMcpIpc(),

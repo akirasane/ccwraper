@@ -1,5 +1,5 @@
 import type { BrowserWindow } from 'electron'
-import type { AppPrefs, NotificationPrefs } from '../../shared/app'
+import type { AppPrefs, AutoResumeReport, NotificationPrefs } from '../../shared/app'
 import { IpcChannels } from '../../shared/channels'
 import type { SessionEvent } from '../../shared/events'
 import type { SessionManager } from './session-manager'
@@ -24,7 +24,7 @@ export interface NotificationServiceDeps {
   overlayIcon?: () => unknown
 }
 
-export type NotificationKind = 'permission' | 'turnDone' | 'backgroundTask'
+export type NotificationKind = 'permission' | 'turnDone' | 'backgroundTask' | 'autoResume'
 
 export interface NotificationDecision {
   kind: NotificationKind
@@ -106,6 +106,44 @@ export function decide(e: SessionEvent, ctx: DecideContext): NotificationDecisio
   }
 }
 
+/** Clock time of `ms`; with the date when it is not today (a weekly limit). */
+export function formatResetTime(ms: number, now: number): string {
+  const d = new Date(ms)
+  const sameDay = d.toDateString() === new Date(now).toDateString()
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+/**
+ * Pure: the toast for an auto-resume report. Content is the tab title and times only, never message text.
+ * 'update' (a pending-count change only, and anything with the notification switches off) shows nothing.
+ */
+export function decideAutoResume(
+  r: AutoResumeReport,
+  prefs: NotificationPrefs,
+  now: number
+): NotificationDecision | undefined {
+  if (!prefs.enabled) return undefined
+  const tab = r.title ? clip(r.title, 40) : undefined
+  const at = r.resetAt !== undefined ? formatResetTime(r.resetAt, now) : undefined
+  if (r.kind === 'paused') {
+    return {
+      kind: 'autoResume',
+      title: tab ? `Paused until ${at ?? 'reset'} · ${tab}` : `Paused until ${at ?? 'reset'}`,
+      body: 'Usage limit reached. This tab resumes automatically after the reset.'
+    }
+  }
+  if (r.kind === 'resumed') {
+    return {
+      kind: 'autoResume',
+      title: tab ? `Resumed · ${tab}` : 'Resumed',
+      body: at ? `The usage limit reset at ${at}. Continuing.` : 'The usage limit reset. Continuing.'
+    }
+  }
+  return undefined
+}
+
 interface Pending {
   decision: NotificationDecision
   timer: unknown
@@ -147,6 +185,34 @@ export class NotificationService {
     this.wire(win)
     if (win.isFocused()) return
     this.dispatch(localId, d, win, prefs)
+  }
+
+  /** Auto-resume pause/resume toast (WP14). Same gating as the others: only while the window is unfocused. */
+  announce(r: AutoResumeReport): void {
+    if (this.disposed) return
+    const d = decideAutoResume(r, this.deps.prefs.get().notifications, this.now())
+    if (!d) return
+    const win = this.deps.getWindow()
+    if (!win || win.isDestroyed()) return
+    this.wire(win)
+    if (win.isFocused()) return
+    this.setBadge(win, true)
+    const notify = this.deps.notify ?? defaultNotify
+    let handle: { close(): void } | void
+    const onClick = (): void => {
+      if (handle) this.live.delete(handle)
+      const w = this.deps.getWindow()
+      if (!w || w.isDestroyed()) return
+      if (w.isMinimized()) w.restore()
+      w.show()
+      w.focus()
+    }
+    try {
+      handle = notify({ title: d.title, body: d.body, onClick })
+    } catch {
+      return
+    }
+    if (handle) this.live.add(handle)
   }
 
   /** The renderer's active session (app:setActiveSession). */

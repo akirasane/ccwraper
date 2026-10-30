@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, screen, shell } from 'electron'
+import { app, BrowserWindow, Menu, powerSaveBlocker, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { IpcChannels } from '../shared/ipc'
 import type { SessionEventPayload } from '../shared/ipc'
@@ -6,6 +6,7 @@ import { registerIpc } from './ipc'
 import type { Disposer } from './ipc/dispose'
 import { isAppNavigation } from './navigation'
 import { prefsPath, transcriptsRoot, usageCachePath, usageLedgerPath, windowStatePath } from './paths'
+import { AutoResumeMain } from './services/autoresume-main'
 import { AuthStatusService } from './services/auth-status'
 import { runClaude } from './services/claude-cli'
 import { GitService } from './services/git-service'
@@ -69,6 +70,7 @@ const manager: SessionManager = new SessionManager(
   { registry: pluginRegistry }
 )
 const notifications = new NotificationService({ getWindow, prefs, manager })
+const autoResume = new AutoResumeMain({ powerSave: powerSaveBlocker, announce: (r) => notifications.announce(r) })
 
 function createWindow(): void {
   const restored = loadWindowState(
@@ -174,7 +176,8 @@ if (!app.requestSingleInstanceLock()) {
       prefs,
       hotkey,
       usage,
-      git
+      git,
+      autoResume: { report: (r) => autoResume.report(r) }
     })
     hotkey.apply(prefs.get().hotkey)
     prefs.onChange((p) => hotkey.apply(p.hotkey))
@@ -194,6 +197,7 @@ function shutdown(): void {
 app.on('before-quit', shutdown)
 app.on('will-quit', () => {
   hotkey.dispose()
+  autoResume.dispose()
   notifications.dispose()
 })
 app.on('window-all-closed', () => {
