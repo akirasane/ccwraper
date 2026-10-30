@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '../shared/channels'
 import type { FsChangedPayload, PtyDataPayload, PtyExitPayload } from '../shared/config'
+import type { AppPrefs } from '../shared/app'
 import type { CcwrapApi, SessionEventPayload } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (p: T) => void): () => void {
@@ -38,7 +39,23 @@ const api: CcwrapApi = {
     list: (args) => ipcRenderer.invoke(IpcChannels.historyList, args),
     load: (args) => ipcRenderer.invoke(IpcChannels.historyLoad, args)
   },
-  app: { info: () => ipcRenderer.invoke(IpcChannels.appInfo) },
+  app: {
+    info: () => ipcRenderer.invoke(IpcChannels.appInfo),
+    authStatus: (opts) => ipcRenderer.invoke(IpcChannels.appAuthStatus, opts ?? {}),
+    setActiveSession: (localId) => ipcRenderer.send(IpcChannels.appSetActiveSession, { localId }),
+    onFocusSession: (cb) => subscribe<{ localId: string }>(IpcChannels.appFocusSession, cb)
+  },
+  prefs: {
+    get: () => ipcRenderer.invoke(IpcChannels.prefsGet),
+    set: (patch) => ipcRenderer.invoke(IpcChannels.prefsSet, patch),
+    onChanged: (cb) => subscribe<AppPrefs>(IpcChannels.prefsChanged, cb)
+  },
+  usage: { summary: (q) => ipcRenderer.invoke(IpcChannels.usageSummary, q) },
+  git: {
+    status: (a) => ipcRenderer.invoke(IpcChannels.gitStatus, a),
+    diff: (a) => ipcRenderer.invoke(IpcChannels.gitDiff, a),
+    log: (a) => ipcRenderer.invoke(IpcChannels.gitLog, a)
+  },
   config: {
     read: (ref) => ipcRenderer.invoke(IpcChannels.configRead, { ref }),
     write: (args) => ipcRenderer.invoke(IpcChannels.configWrite, args),

@@ -11,6 +11,8 @@ export interface FrontmatterDoc {
   bodyOffset: number
   yamlRange?: [number, number]
   error?: { message: string; from: number; to: number }
+  /** strict parse failed, quote-fixed parse succeeded; data comes from the fixed text; error is kept (P4 D13 #4) */
+  lenient?: { keys: string[] }
   eol: '\n' | '\r\n'
 }
 
@@ -212,4 +214,12 @@ export function keyRange(text: string, key: string): [number, number] | undefine
     }
   }
   return undefined
+}
+
+/**
+ * Quotes top-level plain scalars that contain ': ' (frontmatter only). WP0 stub: returns the text unchanged.
+ * WP11 implements it.
+ */
+export function quoteUnsafeScalars(text: string): { text: string; keys: string[] } {
+  return { text, keys: [] }
 }

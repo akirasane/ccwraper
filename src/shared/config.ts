@@ -49,6 +49,8 @@ export interface ConfigItemSummary {
   files?: string[]
   /** frontmatter parse error or unreadable file */
   error?: string
+  /** lenient-parsed frontmatter (P4 D13 #4); `error` stays for truly broken files */
+  warning?: string
   mtimeMs?: number
   readOnly: boolean
 }

@@ -19,7 +19,10 @@ import type {
   ResolvedSettingsView,
   ShellProfile
 } from './config'
+import type { AppPrefs, AppPrefsPatch, AuthStatus, PrefsSetResult } from './app'
 import type { AppInfo, HistorySessionInfo, ProjectInfo, SessionEvent } from './events'
+import type { GitDiff, GitLog, GitStatus } from './git'
+import type { UsageQuery, UsageSummary } from './usage'
 import { PermissionModeSchema } from './permission-mode'
 import type { PermissionMode } from './permission-mode'
 
@@ -223,6 +226,76 @@ export type PtyResizeArgs = z.infer<typeof PtyResizeSchema>
 export const PtyCloseSchema = z.object({ ptyId: z.string() })
 export type PtyCloseArgs = z.infer<typeof PtyCloseSchema>
 
+// ---- P4: prefs / auth / active session ----
+const Flag = z.boolean()
+export const AppPrefsPatchSchema = z
+  .object({
+    notifications: z
+      .object({
+        enabled: Flag,
+        permission: Flag,
+        turnDone: Flag,
+        turnDoneMinSeconds: z.number().int().min(0).max(3600),
+        backgroundTask: Flag,
+        flashTaskbar: Flag
+      })
+      .partial()
+      .strict(),
+    hotkey: z
+      .object({ enabled: Flag, accelerator: z.string().min(1).max(64) })
+      .partial()
+      .strict(),
+    confirmQuitWhileRunning: Flag
+  })
+  .partial()
+  .strict()
+
+export const AuthStatusArgsSchema = z.object({ refresh: z.boolean().optional() })
+export type AuthStatusArgs = z.infer<typeof AuthStatusArgsSchema>
+
+export const SetActiveSessionSchema = z.object({ localId: z.string().nullable() })
+export type SetActiveSessionArgs = z.infer<typeof SetActiveSessionSchema>
+
+// ---- P4: usage ----
+/** Absolute on Windows (drive or UNC) or POSIX. Pure string check so it also runs in the renderer. */
+export function looksAbsolute(p: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(p) || /^[\\/]/.test(p)
+}
+
+export const UsageQuerySchema = z.object({
+  days: z.union([z.literal(7), z.literal(30), z.literal(90), z.literal(365)]),
+  cwd: z
+    .string()
+    .min(1)
+    .refine((p) => !p.includes('\u0000') && looksAbsolute(p), { message: 'cwd must be an absolute path' })
+    .optional(),
+  force: z.boolean().optional()
+})
+
+// ---- P4: git ----
+const GitCwd = z
+  .string()
+  .min(1)
+  .refine((p) => !p.includes('\u0000') && looksAbsolute(p), { message: 'cwd must be an absolute path' })
+
+/** Repo-relative path: no NUL, not absolute (incl. drive letters), no '..' segment. */
+export function isSafeRepoPath(p: string): boolean {
+  if (!p || p.includes('\u0000')) return false
+  if (looksAbsolute(p) || /^[A-Za-z]:/.test(p)) return false
+  return !p.split(/[\\/]/).some((seg) => seg === '..')
+}
+
+export const GitStatusSchema = z.object({ cwd: GitCwd })
+export type GitStatusArgs = z.infer<typeof GitStatusSchema>
+export const GitDiffSchema = z.object({
+  cwd: GitCwd,
+  path: z.string().min(1).max(4096).refine(isSafeRepoPath, { message: 'path must be repo-relative' }),
+  staged: z.boolean()
+})
+export type GitDiffArgs = z.infer<typeof GitDiffSchema>
+export const GitLogSchema = z.object({ cwd: GitCwd, limit: z.number().int().min(1).max(200) })
+export type GitLogArgs = z.infer<typeof GitLogSchema>
+
 export { IpcChannels } from './channels'
 
 export interface SessionEventPayload {
@@ -257,7 +330,24 @@ export interface CcwrapApi {
     /** Replayable events (user_message, assistant_message, tool_use, tool_result...) for a past session. */
     load(args: HistoryLoadArgs): Promise<SessionEvent[]>
   }
-  app: { info(): Promise<AppInfo> }
+  app: {
+    info(): Promise<AppInfo>
+    authStatus(opts?: { refresh?: boolean }): Promise<AuthStatus>
+    /** Fire-and-forget. */
+    setActiveSession(localId: string | null): void
+    onFocusSession(cb: (p: { localId: string }) => void): () => void
+  }
+  prefs: {
+    get(): Promise<AppPrefs>
+    set(patch: AppPrefsPatch): Promise<PrefsSetResult>
+    onChanged(cb: (p: AppPrefs) => void): () => void
+  }
+  usage: { summary(q: UsageQuery): Promise<UsageSummary> }
+  git: {
+    status(a: { cwd: string }): Promise<GitStatus>
+    diff(a: { cwd: string; path: string; staged: boolean }): Promise<GitDiff>
+    log(a: { cwd: string; limit: number }): Promise<GitLog>
+  }
   config: {
     read(ref: ConfigFileRef): Promise<ConfigSnapshot>
     write(args: ConfigWriteArgs): Promise<ConfigWriteResult>

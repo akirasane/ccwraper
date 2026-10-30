@@ -52,6 +52,8 @@ export type SessionEvent =
       durationApiMs?: number
       /** Sum over result.modelUsage (cumulative session, main + subagents). */
       sessionUsage?: Usage & { costUsd: number; thinkingTokens?: number }
+      /** result.modelUsage mapped per model (cumulative for this query process). */
+      modelUsage?: Record<string, Usage & { costUsd: number }>
     }
   | { t: 'error'; message: string }
   /** The SDK query loop ended (process exit / crash / close): no further task events can arrive. */
@@ -135,4 +137,8 @@ export interface AppInfo {
   platform: string
   /** Where deleted skills / commands / agents are moved (under userData). */
   trashDir?: string
+  version: string
+  electronVersion: string
+  packaged: boolean
+  userDataDir: string
 }

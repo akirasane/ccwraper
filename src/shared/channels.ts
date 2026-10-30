@@ -39,5 +39,19 @@ export const IpcChannels = {
   itemsList: 'items:list',
   itemsCreate: 'items:create',
   itemsRename: 'items:rename',
-  itemsDelete: 'items:delete'
+  itemsDelete: 'items:delete',
+  // ---- P4 ----
+  appAuthStatus: 'app:authStatus',
+  /** Fire-and-forget (ipcRenderer.send / ipcMain.on). */
+  appSetActiveSession: 'app:setActiveSession',
+  /** main -> renderer */
+  appFocusSession: 'app:focusSession',
+  prefsGet: 'prefs:get',
+  prefsSet: 'prefs:set',
+  /** main -> renderer */
+  prefsChanged: 'prefs:changed',
+  usageSummary: 'usage:summary',
+  gitStatus: 'git:status',
+  gitDiff: 'git:diff',
+  gitLog: 'git:log'
 } as const
