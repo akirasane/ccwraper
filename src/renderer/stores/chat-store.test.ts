@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CcwrapApi, SessionEventPayload } from '@shared/ipc'
 import { eventFixtures as fx } from '@/features/chat/model/fixtures'
 import { initIpcBridge } from '@/lib/ipc-bridge'
-import { flushChatEvents, useChatStore } from './chat-store'
+import { flushChatEvents, getCachedCtxWindow, useChatStore } from './chat-store'
 
 type Session = CcwrapApi['session']
 let listener: ((p: SessionEventPayload) => void) | undefined
@@ -112,6 +112,45 @@ describe('chat-store', () => {
     await useChatStore.getState().setPermissionMode('c1', 'plan')
     expect(session.setPermissionMode).toHaveBeenCalledWith('L1', 'plan')
     expect(conv().meta.permissionMode).toBe('plan')
+  })
+
+  it('coalesces 100 usage_live events in one frame into one store update', () => {
+    const st = useChatStore.getState()
+    st.createConv({ convId: 'c1', cwd: 'x', localId: 'L1' })
+    const u = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreationTokens: 0 }
+    let updates = 0
+    const unsub = useChatStore.subscribe(() => updates++)
+    for (let i = 0; i < 100; i++)
+      st.applyEvent('L1', {
+        t: 'usage_live', contextTokens: i, contextOutputTokens: 0, contextExact: false, turn: u, exact: false, apiCalls: 1
+      })
+    expect(updates).toBe(0)
+    flushChatEvents()
+    unsub()
+    expect(updates).toBe(1)
+    expect(conv().turn?.contextTokens).toBe(99)
+  })
+
+  it('stopTask and interrupt mark running tasks stopping optimistically', async () => {
+    const st = useChatStore.getState()
+    st.createConv({ convId: 'c1', cwd: 'x', localId: 'L1' })
+    st.applyEvent('L1', { t: 'task_started', taskId: 'a', description: 'a' })
+    st.applyEvent('L1', { t: 'task_started', taskId: 'b', description: 'b' })
+    await useChatStore.getState().stopTask('c1', 'a')
+    expect(session.stopTask).toHaveBeenCalledWith('L1', 'a')
+    expect(conv().tasks['a']!.status).toBe('stopping')
+    expect(conv().tasks['b']!.status).toBe('running')
+    await useChatStore.getState().interrupt('c1')
+    expect(conv().tasks['b']!.status).toBe('stopping')
+  })
+
+  it('caches the context window per model on result', () => {
+    const st = useChatStore.getState()
+    st.createConv({ convId: 'c1', cwd: 'x', localId: 'L1' })
+    st.applyEvent('L1', { t: 'init', sessionId: 's', model: 'm-x', tools: [], mcp: [], slashCommands: [], cwd: 'x' })
+    const u = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreationTokens: 0 }
+    st.applyEvent('L1', { t: 'result', costUsd: 0, durationMs: 1, turns: 1, usage: u, isError: false, contextWindow: 123456 })
+    expect(getCachedCtxWindow('m-x')).toBe(123456)
   })
 
   it('ipc failure becomes an inline error item', async () => {

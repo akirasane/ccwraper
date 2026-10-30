@@ -25,6 +25,7 @@ interface ChatState {
   applyEvent: (localId: string, e: SessionEvent) => void
   submit: (convId: string, text: string) => Promise<void>
   interrupt: (convId: string) => Promise<void>
+  stopTask: (convId: string, taskId: string) => Promise<void>
   replyPermission: (
     convId: string,
     reqId: string,
@@ -63,7 +64,49 @@ function cancelScheduled(): void {
 
 let flushNow: () => void = () => {}
 
-const isDelta = (e: SessionEvent): boolean => e.t === 'text_delta' || e.t === 'thinking_delta'
+// High-frequency events coalesced to one store update per frame (FIFO order kept).
+const isDelta = (e: SessionEvent): boolean =>
+  e.t === 'text_delta' ||
+  e.t === 'thinking_delta' ||
+  e.t === 'usage_live' ||
+  e.t === 'task_progress' ||
+  e.t === 'tool_progress'
+
+const CTX_KEY = 'ccwrap.ctxWindow'
+
+/** model -> context window learned from past results (localStorage; best effort). */
+export function getCachedCtxWindow(model: string | undefined): number | undefined {
+  if (!model) return undefined
+  try {
+    const raw = localStorage.getItem(CTX_KEY)
+    const v = raw ? (JSON.parse(raw) as Record<string, number>)[model] : undefined
+    return typeof v === 'number' && v > 0 ? v : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function cacheCtxWindow(model: string | undefined, window: number): void {
+  if (!model || getCachedCtxWindow(model) === window) return
+  try {
+    const raw = localStorage.getItem(CTX_KEY)
+    const map = raw ? (JSON.parse(raw) as Record<string, number>) : {}
+    localStorage.setItem(CTX_KEY, JSON.stringify({ ...map, [model]: window }))
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+/** Optimistic: running tasks (or just one) show as stopping until the CLI confirms. */
+function markTasksStopping(c: ConvState, only?: string): ConvState {
+  let tasks: ConvState['tasks'] | undefined
+  for (const [id, t] of Object.entries(c.tasks)) {
+    if (t.status !== 'running' || (only !== undefined && id !== only)) continue
+    tasks ??= { ...c.tasks }
+    tasks[id] = { ...t, status: 'stopping' }
+  }
+  return tasks ? { ...c, tasks } : c
+}
 
 export const useChatStore = create<ChatState>((set, get) => {
   const patch = (convId: string, fn: (c: ConvState) => ConvState): void =>
@@ -86,6 +129,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           orphans.set(localId, buf)
           continue
         }
+        if (event.t === 'result' && event.contextWindow) cacheCtxWindow(c.meta.model, event.contextWindow)
         convs[convId] = reduce(c, event, now)
       }
       return { convs }
@@ -157,7 +201,7 @@ export const useChatStore = create<ChatState>((set, get) => {
     submit: async (convId, text) => {
       const c = get().convs[convId]
       if (!c) return
-      patch(convId, (x) => addUserItem(x, text))
+      patch(convId, (x) => addUserItem(x, text, Date.now()))
       try {
         if (c.localId) {
           await window.ccwrap.session.send({ localId: c.localId, text })
@@ -181,8 +225,20 @@ export const useChatStore = create<ChatState>((set, get) => {
     interrupt: async (convId) => {
       const localId = get().convs[convId]?.localId
       if (!localId) return
+      patch(convId, markTasksStopping)
       try {
         await window.ccwrap.session.interrupt(localId)
+      } catch (err) {
+        fail(convId, err)
+      }
+    },
+
+    stopTask: async (convId, taskId) => {
+      const localId = get().convs[convId]?.localId
+      if (!localId) return
+      patch(convId, (c) => markTasksStopping(c, taskId))
+      try {
+        await window.ccwrap.session.stopTask(localId, taskId)
       } catch (err) {
         fail(convId, err)
       }

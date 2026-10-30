@@ -1,5 +1,43 @@
-import type { Block, SessionEvent } from '@shared/events'
-import type { AssistantPart, ChatItem, ChatTarget, ConvState, PendingPermission, ToolCallView } from './types'
+import type { Block, SessionEvent, TaskStatus, Usage } from '@shared/events'
+import type {
+  AssistantPart,
+  ChatItem,
+  ChatTarget,
+  ConvState,
+  PendingPermission,
+  TaskView,
+  ToolCallView,
+  TurnActivity
+} from './types'
+
+const ZERO_USAGE: Usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreationTokens: 0 }
+const isLive = (s: TaskView['status']): boolean =>
+  s === 'running' || s === 'pending' || s === 'stopping' || s === 'paused'
+const isTerminal = (s: TaskStatus): boolean => s === 'completed' || s === 'failed' || s === 'stopped' || s === 'killed'
+
+function startTurn(conv: ConvState, now: number): ConvState {
+  if (conv.turn) return conv
+  return { ...conv, turn: { startedAt: now, usage: ZERO_USAGE, exact: true, apiCalls: 0 } }
+}
+
+/** Close the live turn into lastTurn (local elapsed unless a duration is given). */
+function closeTurn(conv: ConvState, now: number, durationMs?: number): ConvState {
+  const t = conv.turn
+  if (!t) return conv
+  const closed: TurnActivity = {
+    ...t,
+    endedAt: now,
+    durationMs: durationMs ?? Math.max(0, now - t.startedAt),
+    exact: true
+  }
+  const { turn: _t, ...rest } = conv
+  void _t
+  return { ...rest, lastTurn: closed }
+}
+
+function patchTask(conv: ConvState, taskId: string, fn: (t: TaskView | undefined) => TaskView): ConvState {
+  return { ...conv, tasks: { ...conv.tasks, [taskId]: fn(conv.tasks[taskId]) } }
+}
 
 export function createConvState(target: ChatTarget): ConvState {
   return {
@@ -186,6 +224,15 @@ function endTurn(conv: ConvState, now: number, interrupted: boolean): ConvState 
     if (changed) next = { ...next, tools }
     if (next.pending.length > 0) next = { ...next, pending: [] }
   }
+  // Unfinished tasks die with the turn, except background ones while the session keeps running.
+  const sessionRunning = conv.status === 'running' || conv.status === 'waiting_permission'
+  let tasks: Record<string, TaskView> | undefined
+  for (const [id, t] of Object.entries(next.tasks)) {
+    if (!isLive(t.status) || (t.background && sessionRunning)) continue
+    tasks ??= { ...next.tasks }
+    tasks[id] = { ...t, status: 'stopped', endedAt: now }
+  }
+  if (tasks) next = { ...next, tasks }
   return next
 }
 
@@ -197,6 +244,11 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
       return {
         ...conv,
         meta: {
+          ...(e.agents ? { agents: e.agents } : {}),
+          ...(e.skills ? { skills: e.skills } : {}),
+          ...(e.plugins
+            ? { plugins: e.plugins.map((p) => ({ name: p.name, ...(p.version ? { version: p.version } : {}) })) }
+            : {}),
           sessionId: e.sessionId,
           model: e.model,
           tools: e.tools,
@@ -250,16 +302,42 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
     case 'status': {
       const next: ConvState = { ...conv, status: e.state }
       // idle after a turn = finished or interrupted; anything unfinished is dead.
-      return e.state === 'idle' ? endTurn(next, now, true) : next
+      if (e.state === 'idle') return closeTurn(endTurn(next, now, true), now)
+      return e.state === 'running' ? startTurn(next, now) : next
     }
     case 'result': {
-      const next = endTurn(conv, now, false)
+      let next = endTurn(conv, now, false)
       // An interrupted turn reports an error result with zero usage and zero cost: keep the last real
       // context usage and cost instead of dropping the meters to 0.
       const u = e.usage
       const noUsage = u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheCreationTokens === 0
       const prev = e.isError && noUsage ? conv.lastResult : undefined
       const contextWindow = e.contextWindow ?? prev?.contextWindow
+      if (!prev) {
+        // Real result: close the turn (the CLI duration wins) and fold it into the session totals.
+        // No live turn (history replay, or an idle already closed it): synthesize one from the result.
+        const carry = next.turn ? undefined : next.lastTurn
+        next = startTurn(next, now - e.durationMs)
+        const t = next.turn!
+        const ctx =
+          carry?.contextTokens !== undefined
+            ? { contextTokens: carry.contextTokens, ...(carry.contextExact !== undefined ? { contextExact: carry.contextExact } : {}) }
+            : {}
+        next = closeTurn(
+          { ...next, turn: { ...t, ...ctx, usage: t.apiCalls > 0 ? t.usage : e.usage } },
+          now,
+          e.durationMs
+        )
+        next = {
+          ...next,
+          session: {
+            workMs: next.session.workMs + e.durationMs,
+            apiMs: next.session.apiMs + (e.durationApiMs ?? 0),
+            turns: next.session.turns + 1,
+            ...(e.sessionUsage ? { usage: e.sessionUsage } : next.session.usage ? { usage: next.session.usage } : {})
+          }
+        }
+      } else if (next.turn) next = closeTurn(next, now, e.durationMs)
       return {
         ...next,
         status: next.status === 'error' ? 'error' : 'idle',
@@ -284,20 +362,92 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
       }
     }
     // P3 live-activity events: WP2 implements these (usage, tasks, tool progress). No-ops until then.
-    case 'usage_live':
+    case 'usage_live': {
+      const base = startTurn(conv, now).turn!
+      const turn: TurnActivity = {
+        ...base,
+        usage: e.turn,
+        exact: e.exact,
+        apiCalls: e.apiCalls,
+        contextTokens: e.contextTokens + e.contextOutputTokens,
+        contextExact: e.contextExact
+      }
+      return { ...conv, turn }
+    }
     case 'task_started':
+      return patchTask(conv, e.taskId, (old) => ({
+        ...old,
+        taskId: e.taskId,
+        ...(e.toolUseId ? { toolUseId: e.toolUseId } : {}),
+        description: e.description,
+        ...(e.subagentType ? { subagentType: e.subagentType } : {}),
+        ...(e.taskType ? { taskType: e.taskType } : {}),
+        ...(e.parentTaskId ? { parentTaskId: e.parentTaskId } : {}),
+        ...(e.depth !== undefined ? { depth: e.depth } : {}),
+        ...(e.background !== undefined ? { background: e.background } : {}),
+        ...(e.ambient !== undefined ? { ambient: e.ambient } : {}),
+        ...(e.hidden !== undefined ? { hidden: e.hidden } : {}),
+        status: 'running',
+        startedAt: old?.startedAt ?? now
+      }))
     case 'task_progress':
+      return patchTask(conv, e.taskId, (old) => ({
+        description: '',
+        status: 'running',
+        startedAt: now,
+        ...old,
+        taskId: e.taskId,
+        ...(e.toolUseId && !old?.toolUseId ? { toolUseId: e.toolUseId } : {}),
+        totalTokens: e.totalTokens,
+        toolUses: e.toolUses,
+        durationMs: e.durationMs,
+        progressAt: now,
+        ...(e.lastToolName ? { lastToolName: e.lastToolName } : {}),
+        ...(e.summary ? { summary: e.summary } : {})
+      }))
     case 'task_updated':
+      return patchTask(conv, e.taskId, (old) => ({
+        description: '',
+        status: 'running',
+        startedAt: now,
+        ...old,
+        taskId: e.taskId,
+        ...(e.status ? { status: e.status, ...(isTerminal(e.status) ? { endedAt: now } : {}) } : {}),
+        ...(e.description ? { description: e.description } : {}),
+        ...(e.error ? { error: e.error } : {}),
+        ...(e.background !== undefined ? { background: e.background } : {})
+      }))
     case 'task_ended':
-    case 'tool_progress':
-      return conv
+      return patchTask(conv, e.taskId, (old) => ({
+        description: '',
+        startedAt: now,
+        ...old,
+        taskId: e.taskId,
+        ...(e.toolUseId && !old?.toolUseId ? { toolUseId: e.toolUseId } : {}),
+        status: e.status,
+        endedAt: now,
+        ...(e.summary ? { summary: e.summary } : {}),
+        ...(e.totalTokens !== undefined ? { totalTokens: e.totalTokens } : {}),
+        ...(e.toolUses !== undefined ? { toolUses: e.toolUses } : {}),
+        ...(e.durationMs !== undefined ? { durationMs: e.durationMs } : {})
+      }))
+    case 'tool_progress': {
+      const t = conv.tools[e.toolUseId]
+      if (!t) return conv
+      const progressMs = Math.max(t.progressMs ?? 0, e.elapsedMs)
+      if (progressMs === t.progressMs) return conv
+      return { ...conv, tools: { ...conv.tools, [e.toolUseId]: { ...t, progressMs } } }
+    }
   }
 }
 
 /** Optimistic local user prompt (live sessions do not echo it). */
-export function addUserItem(conv: ConvState, text: string): ConvState {
+export function addUserItem(conv: ConvState, text: string, now = 0): ConvState {
   const seq = conv.seq + 1
-  return { ...conv, seq, status: 'running', items: [...conv.items, { kind: 'user', id: `i${seq}`, text }] }
+  // A new prompt starts a fresh live turn.
+  const { turn: _t, ...base } = conv
+  void _t
+  return { ...startTurn(base, now), seq, status: 'running', items: [...conv.items, { kind: 'user', id: `i${seq}`, text }] }
 }
 
 /** Drop a pending permission after the user answered it. */
