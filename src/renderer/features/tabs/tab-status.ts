@@ -2,10 +2,11 @@ import { selectRunningTasks } from '@/features/chat/model/selectors'
 import type { ConvState } from '@/features/chat/model/types'
 import type { TabRef } from '@/stores/workspace-store'
 
-export type TabStatus = 'waiting' | 'error' | 'running' | 'unread' | 'idle'
+export type TabStatus = 'waiting' | 'paused' | 'error' | 'running' | 'unread' | 'idle'
 
 const STATUS_TEXT: Record<TabStatus, string> = {
   waiting: 'Waiting for approval',
+  paused: 'Paused (usage limit)',
   error: 'Error',
   running: 'Running',
   unread: 'New result',
@@ -22,13 +23,14 @@ function baseStatus(c: ConvState): Exclude<TabStatus, 'unread'> {
   if (hit) return hit
   let s: Exclude<TabStatus, 'unread'> = 'idle'
   if (c.status === 'waiting_permission' || c.pending.length > 0) s = 'waiting'
+  else if (c.limit) s = 'paused'
   else if (c.status === 'error') s = 'error'
   else if (c.status === 'running' || selectRunningTasks(c).length > 0) s = 'running'
   base.set(c, s)
   return s
 }
 
-/** waiting > error > running > unread > idle. `unread` is cleared by the store on activation. */
+/** waiting > paused (usage limit) > error > running > unread > idle. `unread` is cleared by the store on activation. */
 export function tabStatus(c: ConvState | undefined, unread: boolean): TabStatus {
   if (!c) return 'idle'
   const b = baseStatus(c)

@@ -2,6 +2,8 @@ import * as React from 'react'
 import { useChatStore } from '@/stores/chat-store'
 import './chat.css'
 import { WorkingRow } from './activity/WorkingRow'
+import { AutoResumeBanner } from '@/features/autoresume/AutoResumeBanner'
+import { AuthHint } from '@/features/onboarding/AuthHint'
 import { Composer } from './Composer'
 import type { ChatTarget } from './model/types'
 import { MessageList } from './MessageList'
@@ -66,6 +68,8 @@ export function ChatView({ target }: { target: ChatTarget }): React.JSX.Element 
       {has && <HistoryNotice convId={convId} />}
       {has ? <MessageList convId={convId} /> : <div className="flex-1" />}
       {has && <WorkingRow convId={convId} />}
+      {has && <AuthHint convId={convId} cwd={target.cwd} />}
+      {has && <AutoResumeBanner convId={convId} />}
       <Composer
         convId={convId}
         disabled={missing}

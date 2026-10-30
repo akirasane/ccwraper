@@ -320,8 +320,22 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
         }
         return closeTurn(endTurn(next, now, true), now)
       }
-      return e.state === 'running' ? startTurn(next, now) : next
+      if (e.state === 'running') {
+        const { limit: _limit, ...rest } = next
+        void _limit
+        return startTurn(rest, now)
+      }
+      return next
     }
+    case 'rate_limited':
+      return {
+        ...conv,
+        limit: {
+          at: now,
+          ...(e.resetsAt !== undefined ? { resetsAt: e.resetsAt } : {}),
+          ...(e.limitType ? { limitType: e.limitType } : {})
+        }
+      }
     case 'result': {
       let next = endTurn(conv, now, false)
       // An interrupted turn reports an error result with zero usage and zero cost: keep the last real

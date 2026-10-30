@@ -137,6 +137,8 @@ export interface ConvState {
   turn?: TurnActivity
   lastTurn?: TurnActivity
   session: SessionActivity
+  /** The last turn was stopped by a subscription usage limit (WP14); cleared when a new turn starts. */
+  limit?: { resetsAt?: number; limitType?: string; at: number }
   /** Inline notice above the stream (e.g. truncated history). */
   notice?: string
   /** Monotonic counter for item ids; keeps the reducer pure. */

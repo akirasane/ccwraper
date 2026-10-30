@@ -4,6 +4,7 @@ import { ChatView } from '@/features/chat/ChatView'
 import type { ChatTarget } from '@/features/chat/model/types'
 import { useFsChangedInvalidation } from '@/lib/config-queries'
 import { CloseTabDialog } from '@/features/tabs/CloseTabDialog'
+import { useAutoResume } from '@/features/autoresume/autoresume'
 import { readPersistedTabs, startTabPersistence } from '@/features/tabs/tab-persist'
 import { useBackgroundAttention } from '@/features/tabs/use-background-attention'
 import { useTabShortcuts } from '@/features/tabs/use-tab-shortcuts'
@@ -104,6 +105,9 @@ function Shell(): React.JSX.Element {
     if (saved) useWorkspaceStore.getState().restoreTabs(saved)
     return startTabPersistence()
   }, [])
+
+  // Auto-resume after a usage limit; must come after the tab restore above so saved pauses find their tabs.
+  useAutoResume()
 
   // Watch the active project's config files in main.
   useEffect(() => {

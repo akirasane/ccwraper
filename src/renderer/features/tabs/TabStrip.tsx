@@ -1,5 +1,6 @@
 import { Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { TabCountdown } from '@/features/autoresume/TabCountdown'
 import { cn } from '@/lib/cn'
 import { useChatStore } from '@/stores/chat-store'
 import { useWorkspaceStore, type TabRef } from '@/stores/workspace-store'
@@ -10,6 +11,7 @@ const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 const DOT: Record<Exclude<TabStatus, 'idle'>, string> = {
   running: 'bg-info animate-pulse motion-reduce:animate-none',
   waiting: 'bg-warn',
+  paused: 'bg-warn',
   error: 'bg-danger',
   unread: 'bg-accent-to'
 }
@@ -59,6 +61,7 @@ function Tab({ tab, active }: { tab: TabRef; active: boolean }): React.JSX.Eleme
         <span className="truncate" data-testid="tab-title">
           {title}
         </span>
+        {status === 'paused' && <TabCountdown convId={tab.convId} />}
       </button>
       <button
         type="button"
