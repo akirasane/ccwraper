@@ -20,9 +20,18 @@ export interface ConfigIpcDeps {
   registry?: PluginRegistry
 }
 
+/** The ConfigService of the running app, so items:* shares its backups and own-write tracking with config:*. */
+let shared: { service: ConfigService; paths: ConfigPaths } | undefined
+export function sharedConfig(): { service: ConfigService; paths: ConfigPaths } | undefined {
+  return shared
+}
+
 export function registerConfigIpc(deps: ConfigIpcDeps): Disposer {
   const paths = deps.paths ?? createConfigPaths()
-  const service = new ConfigService(paths, deps.backupDir ?? join(app.getPath('userData'), 'backups'))
+  const service = new ConfigService(paths, deps.backupDir ?? join(app.getPath('userData'), 'backups'), {
+    ...(deps.registry ? { registry: deps.registry } : {})
+  })
+  shared = { service, paths }
   const watcher = new ConfigWatcher(paths, service, (p: FsChangedPayload) => deps.send(IpcChannels.fsChanged, p))
   watcher.start().catch((err) => console.warn('[ccwrap] config watcher failed to start', err instanceof Error ? err.message : err))
 
@@ -50,6 +59,7 @@ export function registerConfigIpc(deps: ConfigIpcDeps): Disposer {
     IpcChannels.settingsResolve
   )
   return () => {
+    if (shared?.service === service) shared = undefined
     remove()
     void watcher.close()
   }
