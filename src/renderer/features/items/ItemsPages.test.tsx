@@ -37,7 +37,7 @@ function install(): void {
   rename = vi.fn(async (): Promise<ItemMutationResult> => ({ ok: true, ref: { kind: 'skill', scope: 'user', name: 'beta' } }))
   del = vi.fn(async (): Promise<ItemMutationResult> => ({ ok: true, ref: { kind: 'skill', scope: 'user', name: 'alpha' }, trashPath: 'C:\\ud\\trash\\alpha' }))
   ;(window as unknown as { ccwrap: unknown }).ccwrap = {
-    app: { info: vi.fn(async () => ({ claudeSource: 'bundled', sdkVersion: 'x', platform: 'win32', trashDir: 'C:\ud\trash' })) },
+    app: { info: vi.fn(async () => ({ claudeSource: 'bundled', sdkVersion: 'x', platform: 'win32', trashDir: 'C:\\ud\\trash' })) },
     items: {
       list: vi.fn(
         async ({ kind }: { kind: ItemKind }): Promise<ConfigItemList> => ({
@@ -228,7 +228,7 @@ describe('dialogs', () => {
     const dlg = await screen.findByRole('dialog')
     expect(del).not.toHaveBeenCalled()
     expect(within(dlg).getByText(/ccwraper trash/)).toBeTruthy()
-    await waitFor(() => expect(within(dlg).getByText(/C:\ud\trash/)).toBeTruthy())
+    await waitFor(() => expect(within(dlg).getByText(/C:\\ud\\trash/)).toBeTruthy())
     await userEvent.click(within(dlg).getByRole('button', { name: 'Move to trash' }))
     await waitFor(() => expect(del).toHaveBeenCalledTimes(1))
     expect((del.mock.calls[0]![0] as { baseHash: string }).baseHash).toBe('h1')
