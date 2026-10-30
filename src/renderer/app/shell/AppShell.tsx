@@ -3,6 +3,10 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { ChatView } from '@/features/chat/ChatView'
 import type { ChatTarget } from '@/features/chat/model/types'
 import { useFsChangedInvalidation } from '@/lib/config-queries'
+import { CloseTabDialog } from '@/features/tabs/CloseTabDialog'
+import { readPersistedTabs, startTabPersistence } from '@/features/tabs/tab-persist'
+import { useBackgroundAttention } from '@/features/tabs/use-background-attention'
+import { useTabShortcuts } from '@/features/tabs/use-tab-shortcuts'
 import { initIpcBridge } from '@/lib/ipc-bridge'
 import { queryClient } from '@/lib/query-client'
 import { setTerminalOpener } from '@/lib/terminal-bus'
@@ -91,6 +95,15 @@ function Shell(): React.JSX.Element {
   }, [])
 
   useFsChangedInvalidation()
+  useTabShortcuts()
+  useBackgroundAttention()
+
+  // Bring back last session's history tabs (transcripts load lazily), then keep tabs.v1 up to date.
+  useEffect(() => {
+    const saved = readPersistedTabs()
+    if (saved) useWorkspaceStore.getState().restoreTabs(saved)
+    return startTabPersistence()
+  }, [])
 
   // Watch the active project's config files in main.
   useEffect(() => {
@@ -126,7 +139,7 @@ function Shell(): React.JSX.Element {
 
   // Restore the last project (from localStorage) as a fresh draft once we know it exists.
   useEffect(() => {
-    if (cwd && !activeConvId && !isLoading && !missing) newSession()
+    if (cwd && !activeConvId && !isLoading && !missing && !useWorkspaceStore.getState().activeConvId) newSession()
   }, [cwd, activeConvId, isLoading, missing, newSession])
 
   const target = useMemo<ChatTarget | undefined>(
@@ -184,6 +197,7 @@ function Shell(): React.JSX.Element {
       </div>
       <StatusBar />
       <DiscardGuard />
+      <CloseTabDialog />
       <Suspense fallback={null}>
         <CommandPalette />
       </Suspense>

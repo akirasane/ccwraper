@@ -2,6 +2,7 @@ import { ArrowUp, ShieldCheck, Square } from 'lucide-react'
 import * as React from 'react'
 import type { PermissionMode } from '@shared/ipc'
 import { Button, Chip, Kbd } from '@/components/ui'
+import { setComposerInserter } from '@/lib/composer-bus'
 import { useChatStore } from '@/stores/chat-store'
 import { selectIsRunning } from './model/selectors'
 import { ModelMenu } from './ModelMenu'
@@ -30,8 +31,21 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
   })
   const hasPending = useChatStore((s) => (s.convs[convId]?.pending.length ?? 0) > 0)
   const mode = useChatStore((s) => s.convs[convId]?.meta.permissionMode ?? s.modes[convId] ?? 'default') as PermissionMode
-  const [text, setText] = React.useState('')
+  // The draft lives in the store so it survives tab switches (ChatView remounts per tab).
+  const text = useChatStore((s) => s.drafts[convId] ?? '')
+  const setText = React.useCallback((v: string) => useChatStore.getState().setDraft(convId, v), [convId])
   const ref = React.useRef<HTMLTextAreaElement>(null)
+
+  // The command palette inserts "/name " here through composer-bus.
+  React.useEffect(() => {
+    setComposerInserter((insert) => {
+      const cur = useChatStore.getState().drafts[convId] ?? ''
+      const sep = cur && !/\s$/.test(cur) ? ' ' : ''
+      useChatStore.getState().setDraft(convId, `${cur}${sep}${insert}`)
+      ref.current?.focus()
+    })
+    return () => setComposerInserter(undefined)
+  }, [convId])
 
   // Auto-grow up to ~10 lines.
   React.useLayoutEffect(() => {

@@ -16,6 +16,8 @@ beforeEach(() => {
     activeTitle: undefined,
     activeBranch: undefined,
     loadingSession: false,
+    tabs: [],
+    unread: {},
     view: 'chat',
     terminalOpen: false
   })

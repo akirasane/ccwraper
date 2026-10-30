@@ -27,6 +27,8 @@ export function SessionList({ disabled }: { disabled?: boolean }): React.JSX.Ele
   const openSession = useWorkspaceStore((s) => s.openSession)
   const newSession = useWorkspaceStore((s) => s.newSession)
   const conv = useChatStore((s) => (activeConvId ? s.convs[activeConvId] : undefined))
+  const tabs = useWorkspaceStore((s) => s.tabs)
+  const openIds = new Set(tabs.map((t) => t.sessionId).filter((x): x is string => !!x))
   const { data: sessions, isLoading, error } = useSessions(cwd)
 
   // Refetch after each result so new / updated sessions appear.
@@ -65,7 +67,18 @@ export function SessionList({ disabled }: { disabled?: boolean }): React.JSX.Ele
                   activeSessionId === s.sessionId && 'bg-accent-tint'
                 )}
               >
-                <span className="truncate text-base text-fg">{s.title}</span>
+                <span className="flex items-center gap-1.5 truncate text-base text-fg">
+                  {openIds.has(s.sessionId) && (
+                    <span
+                      data-testid="open-dot"
+                      title="Open in a tab"
+                      aria-label="Open in a tab"
+                      role="img"
+                      className="size-1.5 shrink-0 rounded-full bg-accent-to"
+                    />
+                  )}
+                  <span className="truncate">{s.title}</span>
+                </span>
                 <span className="truncate text-xs text-fg-3">
                   {relativeTime(s.lastModified)}
                   {s.gitBranch ? ` · ${s.gitBranch}` : ''}
