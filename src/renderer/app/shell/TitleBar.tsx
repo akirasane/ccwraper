@@ -2,6 +2,8 @@ import { Square } from 'lucide-react'
 import { Button } from '@/components/ui'
 import { selectIsRunning } from '@/features/chat/model/selectors'
 import { useSessions } from '@/features/sessions/queries'
+import { PaletteTrigger } from '@/features/palette/PaletteTrigger'
+import { TabStrip } from '@/features/tabs/TabStrip'
 import { useChatStore } from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 
@@ -27,6 +29,8 @@ export function TitleBar(): React.JSX.Element {
       className="flex h-10 shrink-0 items-center gap-3 border-b border-border bg-bg-0 pl-3"
     >
       <span className="text-sm font-semibold tracking-tight text-fg-2">ccwrap</span>
+      {/* WP5: replaces the single tab below with the tab strip (+ button, drag gap). */}
+      <TabStrip />
       {convId && (
         <div className="relative flex h-full max-w-[320px] items-center px-3 text-base text-fg" style={noDrag}>
           <span className="truncate" data-testid="tab-title">
@@ -39,6 +43,7 @@ export function TitleBar(): React.JSX.Element {
         </div>
       )}
       <div className="ml-auto flex items-center gap-2" style={noDrag}>
+        <PaletteTrigger />
         {running && convId && (
           <Button variant="danger" size="sm" onClick={() => void interrupt(convId)} aria-label="Interrupt">
             <Square size={12} aria-hidden /> Interrupt

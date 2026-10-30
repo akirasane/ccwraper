@@ -26,8 +26,25 @@ function writeLastCwd(cwd: string): void {
   }
 }
 
-/** Main-column view. 'chat' is the default; the others are the config pages (P2) and the item / hook editors (P3). */
-export type AppView = 'chat' | 'settings' | 'mcp' | 'memory' | 'skills' | 'agents' | 'hooks'
+/** Main-column views. 'chat' is the default; the others are config pages (P2), item / hook editors (P3), data views and prefs (P4). */
+export const APP_VIEWS = ['chat', 'settings', 'mcp', 'memory', 'skills', 'agents', 'hooks', 'usage', 'git', 'preferences'] as const
+export type AppView = (typeof APP_VIEWS)[number]
+
+/** One open conversation tab (P4 D2). WP5 owns the behaviour; WP0 freezes the shape. */
+export interface TabRef {
+  convId: string
+  cwd: string
+  sessionId?: string
+  title?: string
+  openedAt: number
+  lastActiveAt: number
+}
+
+/** A config item the command palette asks a page to select (`focusItem`, P4 D7). */
+export interface FocusItem {
+  kind: 'skill' | 'command' | 'agent'
+  name: string
+}
 
 interface WorkspaceState {
   view: AppView
@@ -46,6 +63,15 @@ interface WorkspaceState {
   newSession: () => void
   openSession: (s: HistorySessionInfo) => Promise<void>
   addFolder: () => Promise<void>
+  // ---- P4 seams (WP0 stubs; WP5 owns the implementation from W1 on) ----
+  tabs: TabRef[]
+  activateTab: (convId: string) => void
+  closeTab: (convId: string) => Promise<void>
+  /** Stub: same as newSession (an optional cwd selects that project's draft). */
+  newTab: (cwd?: string) => void
+  cycleTab: (dir: 1 | -1) => void
+  focusItem?: FocusItem
+  setFocusItem: (item: FocusItem | undefined) => void
 }
 
 /** Heuristic: a big transcript that replays to almost nothing was probably compacted or cut short. */
@@ -120,6 +146,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         useDirtyRegistry.getState().guard(() => void doOpenSession(s).then(resolve, resolve))
       })
     },
+
+    tabs: [],
+    activateTab: (convId) => {
+      const conv = useChatStore.getState().convs[convId]
+      if (!conv) return
+      useDirtyRegistry.getState().guard(() => set({ cwd: conv.cwd, activeConvId: convId, view: 'chat' }))
+    },
+    closeTab: async () => {},
+    newTab: (cwd) => {
+      if (cwd) get().selectProject(cwd)
+      else get().newSession()
+    },
+    cycleTab: () => {},
+    setFocusItem: (focusItem) => set({ focusItem }),
 
     addFolder: async () => {
       const picked = await window.ccwrap.dialog.pickDirectory()

@@ -119,6 +119,16 @@
   --press-scale: 0.98;
   --hover-lift: -1px;
 
+  /* ---------- Data visualization (P4). 5:1+ on --bg-1; chart-6 is always "Other" ---------- */
+  --chart-1: #A78BFA;   /* = accent-text */
+  --chart-2: #60A5FA;   /* = info */
+  --chart-3: #22D3EE;   /* = accent conic */
+  --chart-4: #4ADE80;   /* = ok */
+  --chart-5: #FBBF24;   /* = warn */
+  --chart-6: #82828F;   /* = text-tertiary */
+  --chart-grid: var(--border);
+  --chart-axis: var(--text-tertiary);
+
   /* ---------- Terminal ANSI 16 (bg = --bg-1). All AA >= 4.5 except black (bg role) ---------- */
   --term-bg: #101014;
   --term-fg: #D4D4DC;

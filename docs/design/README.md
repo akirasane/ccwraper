@@ -31,7 +31,7 @@ Map every token as `theme.extend` pointing at the CSS variable, e.g. `colors: { 
 | Status bar | 26 high | 11px text, tabular numbers |
 | Command palette | 620 wide, top 96 (10vh on short windows), list max 460 / 62vh | Rows 36, group headers 28 |
 | Permission dialog | 520 wide, 20 padding, centered | |
-| Toast | 340 wide, stack bottom-right 16 / 40, gap 8, max 3 visible | |
+| Toast | 340 wide, stack bottom-right 16 / 88 (26 status bar + 56 footer + gap, P4), gap 8, max 3 visible | |
 
 ## Components and states
 
@@ -114,3 +114,24 @@ Terminal options: `fontFamily: '"Geist Mono", "Cascadia Code", Consolas, monospa
 - White on accent: #FFF on #8B5CF6 is 4.23 and on #3B82F6 is 3.68, so both fail for text. Filled buttons with labels therefore use `--accent-solid` (#7C3AED 5.70 to #2563EB 5.17). The SPEC gradient stays for borders, rings, the caret and icons, where 3:1 is enough for non-text.
 - Semantic text on its own 10% tint stays above 6:1 (ok 9.66, warn 9.91, danger 6.30).
 - Assumption: `--text-tertiary` (#82828F) is an addition to the SPEC palette. It is needed because SPEC muted (#62626F) cannot carry readable meta text at AA.
+
+## Data visualization (P4)
+
+Charts are hand-rolled SVG (no chart library) and take every color from tokens, never hex.
+
+| Token | Color | Same as |
+|---|---|---|
+| `--chart-1` | violet `#A78BFA` | `--accent-text` |
+| `--chart-2` | blue `#60A5FA` | `--info` |
+| `--chart-3` | cyan `#22D3EE` | the accent conic |
+| `--chart-4` | green `#4ADE80` | `--ok` |
+| `--chart-5` | amber `#FBBF24` | `--warn` |
+| `--chart-6` | gray `#82828F`, always "Other" | `--text-tertiary` |
+| `--chart-grid` | `var(--border)` | |
+| `--chart-axis` | `var(--text-tertiary)` | |
+
+- Tailwind: `chart-1` .. `chart-6`, `chart-grid`, `chart-axis` (for example `fill-chart-1`, `text-chart-axis`).
+- Every chart color is 5:1 or better on `bg-1` (the contrast table above).
+- Fixed mapping: output = chart-1, input = chart-2, cache read = chart-3, cache write = chart-5. Models take chart-1..5 by descending tokens; the rest are "Other" (chart-6).
+- Bars grow with `transform: scaleY` (no animation under `prefers-reduced-motion`).
+- Every chart has `role="img"`, an `aria-label` summary, and a "Table" toggle that shows the same numbers.

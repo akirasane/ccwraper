@@ -1,4 +1,4 @@
-import { Bot, FileText, MessagesSquare, Plug, Settings, Sparkles, Webhook } from 'lucide-react'
+import { Bot, ChartColumn, FileText, GitBranch, MessagesSquare, Plug, Settings, SlidersHorizontal, Sparkles, Webhook } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import type { AppView } from '@/stores/workspace-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
@@ -46,10 +46,13 @@ export function LeftRail({ disabled }: { disabled?: boolean }): React.JSX.Elemen
         <NavRow view="skills" label="Skills" icon={Sparkles} />
         <NavRow view="agents" label="Agents" icon={Bot} />
         <NavRow view="hooks" label="Hooks" icon={Webhook} />
+        <NavRow view="usage" label="Usage" icon={ChartColumn} />
+        <NavRow view="git" label="Git" icon={GitBranch} />
       </nav>
       <SessionList disabled={disabled} />
-      <div className="border-t border-border p-2">
+      <div className="flex flex-col gap-0.5 border-t border-border p-2">
         <NavRow view="settings" label="Settings" icon={Settings} />
+        <NavRow view="preferences" label="Preferences" icon={SlidersHorizontal} />
       </div>
     </aside>
   )

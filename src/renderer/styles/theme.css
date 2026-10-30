@@ -39,6 +39,15 @@
   --color-info-bg: var(--info-bg);
   --color-info-border: var(--info-border);
 
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+  --color-chart-grid: var(--chart-grid);
+  --color-chart-axis: var(--chart-axis);
+
   --color-diff-add: var(--diff-add-bg);
   --color-diff-del: var(--diff-del-bg);
 

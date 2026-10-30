@@ -22,6 +22,14 @@ const MemoryPage = lazy(() => import('@/features/memory/MemoryPage').then((m) =>
 const SkillsPage = lazy(() => import('@/features/items/SkillsPage').then((m) => ({ default: m.SkillsPage })))
 const AgentsPage = lazy(() => import('@/features/items/AgentsPage').then((m) => ({ default: m.AgentsPage })))
 const HooksPage = lazy(() => import('@/features/hooks/HooksPage').then((m) => ({ default: m.HooksPage })))
+const UsagePage = lazy(() => import('@/features/usage/UsagePage').then((m) => ({ default: m.UsagePage })))
+const GitPage = lazy(() => import('@/features/git/GitPage').then((m) => ({ default: m.GitPage })))
+const PreferencesPage = lazy(() =>
+  import('@/features/preferences/PreferencesPage').then((m) => ({ default: m.PreferencesPage }))
+)
+const CommandPalette = lazy(() =>
+  import('@/features/palette/CommandPalette').then((m) => ({ default: m.CommandPalette }))
+)
 const TerminalPanel = lazy(() =>
   import('@/features/terminal/TerminalPanel').then((m) => ({ default: m.TerminalPanel }))
 )
@@ -144,6 +152,9 @@ function Shell(): React.JSX.Element {
                 {view === 'skills' && <SkillsPage cwd={cwd} />}
                 {view === 'agents' && <AgentsPage cwd={cwd} />}
                 {view === 'hooks' && <HooksPage cwd={cwd} />}
+                {view === 'usage' && <UsagePage cwd={cwd} />}
+                {view === 'git' && <GitPage cwd={cwd} />}
+                {view === 'preferences' && <PreferencesPage />}
               </Suspense>
             )}
             {/* Chat stays mounted (hidden) while another view is open so composer drafts and scroll survive. */}
@@ -173,6 +184,9 @@ function Shell(): React.JSX.Element {
       </div>
       <StatusBar />
       <DiscardGuard />
+      <Suspense fallback={null}>
+        <CommandPalette />
+      </Suspense>
     </div>
   )
 }
