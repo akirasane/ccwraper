@@ -1,0 +1,9 @@
+{
+  "loggedIn": true,
+  "authMethod": "claude.ai",
+  "apiProvider": "firstParty",
+  "email": "SENTINEL-EMAIL@example.invalid",
+  "orgId": "SENTINEL-ORG",
+  "orgName": "SENTINEL-ORG-NAME",
+  "subscriptionType": "max"
+}
