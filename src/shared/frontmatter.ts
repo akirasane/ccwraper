@@ -41,7 +41,7 @@ function lineAt(text: string, pos: number): [number, number, number] {
   return [pos, end, nl + 1]
 }
 
-function parseInternal(text: string): Parsed {
+function parseInternal(text: string, noLenient = false): Parsed {
   const bomLen = text.charCodeAt(0) === 0xfeff ? 1 : 0
   const eol = detectEol(text)
   const none = (): Parsed => ({
@@ -88,10 +88,20 @@ function parseInternal(text: string): Parsed {
     yamlRange: [yamlStart, closeStart] as [number, number],
     eol
   }
-  const fail = (message: string, from: number, to: number): Parsed => ({
-    info: { ...base, data: {}, error: { message, from, to: Math.max(to, from) } },
-    bomLen
-  })
+  const fail = (message: string, from: number, to: number): Parsed => {
+    const info: FrontmatterDoc = { ...base, data: {}, error: { message, from, to: Math.max(to, from) } }
+    if (!noLenient) {
+      const fixed = quoteUnsafeScalars(text)
+      if (fixed.keys.length > 0) {
+        const retry = parseInternal(fixed.text, true).info
+        if (!retry.error && retry.hasFrontmatter) {
+          info.data = retry.data
+          info.lenient = { keys: fixed.keys }
+        }
+      }
+    }
+    return { info, bomLen }
+  }
 
   let doc: Document.Parsed
   try {
@@ -216,10 +226,39 @@ export function keyRange(text: string, key: string): [number, number] | undefine
   return undefined
 }
 
+const KEY_LINE_RE = /^([A-Za-z_][A-Za-z0-9_-]*):[ \t]+(\S.*?)[ \t]*$/
+const SPECIAL_START_RE = /^["'|>\[{&*!#%@`]/
+
 /**
- * Quotes top-level plain scalars that contain ': ' (frontmatter only). WP0 stub: returns the text unchanged.
- * WP11 implements it.
+ * Quotes top-level plain scalars that contain ': ' (frontmatter only), so the CLI-accepted
+ * `description: Use this agent: when ...` parses. Quoted values, block scalars, flow
+ * collections, multi-line plain scalars, lists and the body are left untouched.
  */
 export function quoteUnsafeScalars(text: string): { text: string; keys: string[] } {
-  return { text, keys: [] }
+  const bomLen = text.charCodeAt(0) === 0xfeff ? 1 : 0
+  const lines = text.split('\n')
+  if (!OPEN_RE.test((lines[0] ?? '').slice(bomLen).replace(/\r$/, ''))) return { text, keys: [] }
+  let close = -1
+  for (let i = 1; i < lines.length; i++) {
+    if (CLOSE_RE.test((lines[i] ?? '').replace(/\r$/, ''))) {
+      close = i
+      break
+    }
+  }
+  if (close < 0) return { text, keys: [] }
+  const keys: string[] = []
+  for (let i = 1; i < close; i++) {
+    const raw = lines[i] ?? ''
+    const cr = raw.endsWith('\r') ? '\r' : ''
+    const m = KEY_LINE_RE.exec(cr ? raw.slice(0, -1) : raw)
+    if (!m) continue
+    const key = m[1] as string
+    const value = m[2] as string
+    if (SPECIAL_START_RE.test(value) || !value.includes(': ')) continue
+    const next = (lines[i + 1] ?? '').replace(/\r$/, '')
+    if (i + 1 < close && /^[ \t]+\S/.test(next)) continue // multi-line plain scalar: leave alone
+    lines[i] = `${key}: "${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"${cr}`
+    keys.push(key)
+  }
+  return keys.length === 0 ? { text, keys } : { text: lines.join('\n'), keys }
 }

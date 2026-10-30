@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { keyRange, parseFrontmatter, patchFrontmatter, replaceBody } from './frontmatter'
+import { keyRange, parseFrontmatter, patchFrontmatter, quoteUnsafeScalars, replaceBody } from './frontmatter'
 
 const LF = `---
 # top comment
@@ -283,5 +283,40 @@ describe('keyRange', () => {
     expect(keyRange(LF, 'nope')).toBeUndefined()
     expect(keyRange('body', 'name')).toBeUndefined()
     expect(keyRange('---\na: [\n---\n', 'a')).toBeUndefined()
+  })
+})
+
+describe('lenient frontmatter (P4 D13 #4)', () => {
+  const SRC = '---\nname: demo\ndescription: Use this agent: when "x" helps\ntools: Read\n---\nBody: keep this: as is\n'
+
+  it('quoteUnsafeScalars quotes only unsafe plain scalars, frontmatter only', () => {
+    const r = quoteUnsafeScalars(SRC)
+    expect(r.keys).toEqual(['description'])
+    expect(r.text).toContain('description: "Use this agent: when \\"x\\" helps"')
+    expect(r.text.endsWith('Body: keep this: as is\n')).toBe(true)
+  })
+
+  it('leaves quoted values, block scalars, lists and safe text untouched', () => {
+    const t = '---\na: "q: r"\nb: |\n  x: y\nc:\n  - d: e\nf: plain\n---\nz: a: b\n'
+    expect(quoteUnsafeScalars(t)).toEqual({ text: t, keys: [] })
+  })
+
+  it('handles CRLF', () => {
+    const r = quoteUnsafeScalars(SRC.replace(/\n/g, '\r\n'))
+    expect(r.keys).toEqual(['description'])
+    expect(r.text).toContain('helps"\r\n')
+  })
+
+  it('lenient parse returns data, lenient.keys and keeps the error', () => {
+    const fm = parseFrontmatter(SRC)
+    expect(fm.error).toBeDefined()
+    expect(fm.lenient).toEqual({ keys: ['description'] })
+    expect(fm.data['description']).toBe('Use this agent: when "x" helps')
+    expect(fm.data['name']).toBe('demo')
+  })
+
+  it('valid strict YAML never sets lenient; patch still throws on lenient text', () => {
+    expect(parseFrontmatter('---\na: "b: c"\n---\n').lenient).toBeUndefined()
+    expect(() => patchFrontmatter(SRC, [{ op: 'set', key: 'name', value: 'x' }])).toThrow()
   })
 })
