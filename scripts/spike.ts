@@ -98,6 +98,74 @@ async function main(): Promise<void> {
     return
   }
 
+  // SPIKE_SUBAGENT=1 (P3 WP1): one cheap haiku turn that spawns an Agent. Prints a compact raw trace so the
+  // event order / parent_tool_use_id / usage facts can be recorded. Use a scratch CLAUDE_CONFIG_DIR + settingSources [].
+  if (process.env['SPIKE_SUBAGENT']) {
+    console.log('=== SUBAGENT SPIKE ===  CLAUDE_CONFIG_DIR=', process.env['CLAUDE_CONFIG_DIR'] ?? '(unset!)')
+    const trace: string[] = []
+    const callSums = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, calls: 0 }
+    const rawTap = (m: unknown): void => {
+      const x = m as Record<string, any>
+      const p = x['parent_tool_use_id'] ?? '-'
+      let line = `${x['type']}${x['subtype'] ? '/' + x['subtype'] : ''} parent=${p}`
+      if (x['type'] === 'stream_event') {
+        const ev = x['event']
+        line = `stream/${ev.type}${ev.delta ? '/' + ev.delta.type : ''} parent=${p}`
+        if (ev.type === 'message_start') {
+          const u = ev.message?.usage ?? {}
+          line += ` id=${ev.message?.id} in=${u.input_tokens} cr=${u.cache_read_input_tokens} cc=${u.cache_creation_input_tokens} out=${u.output_tokens}`
+        }
+        if (ev.type === 'message_delta') {
+          line += ` usage=${JSON.stringify(ev.usage)}`
+          callSums.calls++
+          callSums.output += ev.usage?.output_tokens ?? 0
+        }
+      } else if (x['type'] === 'system' && String(x['subtype']).startsWith('task_')) {
+        line += ` ${JSON.stringify({ ...x, uuid: undefined, session_id: undefined, prompt: undefined })}`.slice(0, 400)
+      } else if (x['type'] === 'tool_progress') line += ` ${x['tool_name']} ${x['elapsed_time_seconds']}s`
+      else if (x['type'] === 'assistant') {
+        const names = (x['message']?.content ?? []).filter((b: any) => b.type === 'tool_use').map((b: any) => b.name)
+        line += ` msg=${x['message']?.id} tools=${JSON.stringify(names)}`
+      } else if (x['type'] === 'result') {
+        line += ` usage=${JSON.stringify(x['usage'])} modelUsage=${JSON.stringify(x['modelUsage'])} cost=${x['total_cost_usd']}`
+      }
+      trace.push(line)
+      record('SUB', m)
+    }
+    const s = await startSdkSession({
+      cwd,
+      prompt:
+        'Use the Agent tool once (general-purpose) to count the files in the current directory with Glob, then reply with just the number.',
+      permissionMode: 'acceptEdits',
+      settingSources: [],
+      model: 'haiku',
+      onRaw: rawTap,
+      onEvent: (e) => {
+        if (e.t !== 'usage_live') console.log(`[SUB] ${summarize(e)}`)
+        else console.log(`[SUB] usage_live ctx=${e.contextTokens}+${e.contextOutputTokens} turn=${JSON.stringify(e.turn)} exact=${e.exact}`)
+        if (e.t === 'permission_request') s.replyPermission(e.reqId, 'allow', 'once')
+        if (e.t === 'result') setTimeout(() => s.close(), 200)
+      }
+    })
+    await s.done
+    console.log('--- RAW TRACE (stream deltas collapsed) ---')
+    let last = ''
+    let n = 0
+    for (const l of trace) {
+      const key = l.replace(/ id=.*| usage=.*/, '')
+      if (key === last && l.includes('delta')) n++
+      else {
+        if (n) console.log(`   (x${n + 1} same)`)
+        n = 0
+        console.log(l)
+      }
+      last = key
+    }
+    if (n) console.log(`   (x${n + 1} same)`)
+    console.log('SPIKE DONE')
+    return
+  }
+
   if (!process.env['SPIKE_SKIP_123']) {
   // 1. Basic prompt: init, streaming deltas, result.
   console.log('\n=== TEST 1: basic prompt ===')
