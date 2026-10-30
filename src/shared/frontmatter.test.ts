@@ -143,6 +143,13 @@ describe('patchFrontmatter', () => {
     expect(keys).toEqual(['name', 'description', 'allowed-tools', 'hooks'])
   })
 
+  it('does not re-pad untouched flow collections', () => {
+    const text = ['---', 'name: demo', 'custom: [1, 2]', 'map: {a: 1}', '---', 'body', ''].join('\n')
+    const out = patchFrontmatter(text, [{ op: 'set', key: 'name', value: 'other' }])
+    expect(out).toContain('custom: [1, 2]')
+    expect(out).toContain('map: {a: 1}')
+  })
+
   it('set appends new keys at the end and keeps nested structures', () => {
     const out = patchFrontmatter(LF, [{ op: 'set', key: 'model', value: 'opus' }])
     const d = parseFrontmatter(out)

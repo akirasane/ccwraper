@@ -168,7 +168,7 @@ function applyOps(doc: Document, ops: FmOp[]): boolean {
 function serialize(doc: Document, eol: '\n' | '\r\n'): string {
   const c = doc.contents
   if (c === null || (isMap(c) && c.items.length === 0 && !doc.commentBefore && !doc.comment)) return ''
-  return toEol(doc.toString({ lineWidth: 0 }), eol)
+  return toEol(doc.toString({ lineWidth: 0, flowCollectionPadding: false }), eol)
 }
 
 /** Throws on unparsable frontmatter; [] -> the same string. */
