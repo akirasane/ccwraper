@@ -1,0 +1,48 @@
+[
+  { "t": "status", "state": "running" },
+  {
+    "t": "init", "sessionId": "s1", "model": "claude-haiku-5-5", "tools": ["Agent", "Glob"], "mcp": [],
+    "slashCommands": ["/help"], "cwd": "C:\\fixture\\proj", "permissionMode": "acceptEdits",
+    "agents": ["general-purpose"], "skills": [], "plugins": []
+  },
+  { "t": "usage_live", "contextTokens": 19632, "contextOutputTokens": 17, "contextExact": false,
+    "turn": { "inputTokens": 2, "outputTokens": 17, "cacheReadTokens": 0, "cacheCreationTokens": 19630 }, "exact": false, "apiCalls": 1 },
+  { "t": "usage_live", "contextTokens": 19632, "contextOutputTokens": 42, "contextExact": false,
+    "turn": { "inputTokens": 2, "outputTokens": 42, "cacheReadTokens": 0, "cacheCreationTokens": 19630 }, "exact": false, "apiCalls": 1 },
+  {
+    "t": "assistant_message", "msgId": "m1",
+    "blocks": [{ "type": "tool_use", "toolUseId": "toolu_agent", "name": "Agent",
+      "input": { "description": "Count files", "subagent_type": "general-purpose", "prompt": "Count the files." } }]
+  },
+  { "t": "tool_use", "toolUseId": "toolu_agent", "name": "Agent",
+    "input": { "description": "Count files", "subagent_type": "general-purpose", "prompt": "Count the files." } },
+  { "t": "task_started", "taskId": "task1", "toolUseId": "toolu_agent", "description": "Count files",
+    "subagentType": "general-purpose", "taskType": "local_agent", "depth": 1, "background": true },
+  { "t": "tool_result", "toolUseId": "toolu_agent", "content": "Async agent launched successfully.", "isError": false },
+  { "t": "usage_live", "contextTokens": 19632, "contextOutputTokens": 169, "contextExact": true,
+    "turn": { "inputTokens": 2, "outputTokens": 169, "cacheReadTokens": 0, "cacheCreationTokens": 19630 }, "exact": true, "apiCalls": 1 },
+  { "t": "usage_live", "contextTokens": 27934, "contextOutputTokens": 3, "contextExact": false,
+    "turn": { "inputTokens": 4, "outputTokens": 172, "cacheReadTokens": 19630, "cacheCreationTokens": 27932 }, "exact": false, "apiCalls": 2 },
+  {
+    "t": "assistant_message", "msgId": "sub_m1", "parentToolUseId": "toolu_agent",
+    "blocks": [{ "type": "tool_use", "toolUseId": "toolu_glob", "name": "Glob", "input": { "pattern": "*" } }]
+  },
+  { "t": "tool_use", "toolUseId": "toolu_glob", "name": "Glob", "input": { "pattern": "*" }, "parentToolUseId": "toolu_agent" },
+  { "t": "task_progress", "taskId": "task1", "toolUseId": "toolu_agent", "totalTokens": 20726, "toolUses": 1,
+    "durationMs": 1588, "lastToolName": "Glob" },
+  { "t": "thinking_delta", "msgId": "m2", "text": "Waiting." },
+  { "t": "tool_result", "toolUseId": "toolu_glob", "content": "a.txt\nb.txt\nc.txt", "isError": false },
+  { "t": "text_delta", "msgId": "m2", "text": "The agent is still running." },
+  { "t": "usage_live", "contextTokens": 27934, "contextOutputTokens": 218, "contextExact": false,
+    "turn": { "inputTokens": 4, "outputTokens": 387, "cacheReadTokens": 19630, "cacheCreationTokens": 27932 }, "exact": false, "apiCalls": 2 },
+  { "t": "assistant_message", "msgId": "m2", "blocks": [{ "type": "text", "text": "The agent is still running." }] },
+  { "t": "usage_live", "contextTokens": 27934, "contextOutputTokens": 122, "contextExact": true,
+    "turn": { "inputTokens": 4, "outputTokens": 291, "cacheReadTokens": 19630, "cacheCreationTokens": 27932 }, "exact": true, "apiCalls": 2 },
+  {
+    "t": "result", "costUsd": 0.0087, "durationMs": 4048, "durationApiMs": 3900, "turns": 2,
+    "usage": { "inputTokens": 4, "outputTokens": 291, "cacheReadTokens": 19630, "cacheCreationTokens": 27932 },
+    "isError": false, "resultText": "The agent is still running.", "contextWindow": 200000,
+    "sessionUsage": { "inputTokens": 4, "outputTokens": 291, "cacheReadTokens": 19630, "cacheCreationTokens": 27932, "costUsd": 0.0087 }
+  },
+  { "t": "status", "state": "idle" }
+]
