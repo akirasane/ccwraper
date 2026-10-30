@@ -32,7 +32,7 @@ export type SessionEvent =
   | { t: 'assistant_message'; msgId: string; blocks: Block[]; parentToolUseId?: string }
   | { t: 'tool_use'; toolUseId: string; name: string; input: unknown; parentToolUseId?: string }
   | { t: 'tool_result'; toolUseId: string; content: string; isError: boolean }
-  | { t: 'permission_request'; reqId: string; toolName: string; input: unknown; title?: string; ruleLabel?: string }
+  | { t: 'permission_request'; reqId: string; toolName: string; input: unknown; title?: string; ruleLabel?: string; ruleLabels?: string[] }
   | { t: 'status'; state: SessionStatus }
   | {
       t: 'result'

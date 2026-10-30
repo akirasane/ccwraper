@@ -18,6 +18,7 @@ beforeEach(() => {
     setModel: vi.fn(async () => {}),
     setPermissionMode: vi.fn(async () => {}),
     permissionReply: vi.fn(async () => {}),
+    supportedModels: vi.fn(async () => []),
     onEvent: vi.fn((cb: (p: SessionEventPayload) => void) => {
       listener = cb
       return () => {

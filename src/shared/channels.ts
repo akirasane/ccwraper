@@ -12,5 +12,26 @@ export const IpcChannels = {
   historyListProjects: 'history:listProjects',
   historyList: 'history:list',
   historyLoad: 'history:load',
-  appInfo: 'app:info'
+  appInfo: 'app:info',
+  sessionSupportedModels: 'session:supportedModels',
+  configRead: 'config:read',
+  configWrite: 'config:write',
+  configWatchProject: 'config:watchProject',
+  settingsResolve: 'settings:resolve',
+  mcpList: 'mcp:list',
+  mcpAdd: 'mcp:add',
+  mcpRemove: 'mcp:remove',
+  mcpUpdate: 'mcp:update',
+  mcpTest: 'mcp:test',
+  ptyListShells: 'pty:listShells',
+  ptyOpen: 'pty:open',
+  /** Fire-and-forget (ipcRenderer.send / ipcMain.on). */
+  ptyWrite: 'pty:write',
+  /** Fire-and-forget (ipcRenderer.send / ipcMain.on). */
+  ptyResize: 'pty:resize',
+  ptyClose: 'pty:close',
+  /** main -> renderer events */
+  ptyData: 'pty:data',
+  ptyExit: 'pty:exit',
+  fsChanged: 'fs:changed'
 } as const

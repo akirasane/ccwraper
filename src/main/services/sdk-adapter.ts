@@ -18,7 +18,7 @@ export type PermissionModeName = 'default' | 'acceptEdits' | 'bypassPermissions'
 
 export type QueryImpl = (p: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => Query
 
-export type RememberScope = 'once' | 'session' | 'always'
+export type RememberScope = 'once' | 'session' | 'always' | 'user'
 
 export interface AdapterOptions {
   cwd: string
