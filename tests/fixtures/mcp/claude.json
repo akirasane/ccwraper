@@ -1,0 +1,22 @@
+{
+  "numStartups": 3,
+  "userID": "fixture-user-id",
+  "oauthAccount": { "emailAddress": "fixture@example.com", "accountUuid": "fixture-uuid" },
+  "cachedGrowthBookFeatures": { "x": true },
+  "mcpServers": {
+    "alpha": { "type": "stdio", "command": "node", "args": ["a.js"], "env": { "TOKEN": "user-secret-1" } },
+    "shared": { "type": "stdio", "command": "user-shared" }
+  },
+  "projects": {
+    "__KEY__": {
+      "allowedTools": [],
+      "enabledMcpjsonServers": ["proj-ok"],
+      "disabledMcpjsonServers": ["proj-no"],
+      "mcpServers": {
+        "shared": { "type": "http", "url": "https://example.com/mcp", "headers": { "Authorization": "Bearer local-secret" } },
+        "loc": { "command": "node", "args": ["l.js"] }
+      }
+    },
+    "C:\\fixture\\other": { "mcpServers": { "other": { "command": "x" } } }
+  }
+}

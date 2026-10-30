@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "proj-ok": { "command": "node", "args": ["ok.js"] },
+    "proj-no": { "command": "node", "args": ["no.js"] },
+    "proj-pending": { "type": "sse", "url": "https://example.com/sse" },
+    "shared": { "command": "project-shared" }
+  }
+}
