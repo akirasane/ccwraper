@@ -315,6 +315,9 @@ export function windowStatePath(userDataDir: string): string {
 export function usageCachePath(userDataDir: string): string {
   return join(userDataDir, 'usage-cache.json')
 }
+export function limitsPath(userDataDir: string): string {
+  return join(userDataDir, 'limits.json')
+}
 export function usageLedgerPath(userDataDir: string): string {
   return join(userDataDir, 'usage-ledger.jsonl')
 }

@@ -15,6 +15,8 @@ export interface SessionManagerDeps {
   registry?: PluginRegistry
   /** Reads the allowBypassMode preference at call time. Defaults to off. */
   allowBypass?: () => boolean
+  /** Receives every SDK rate_limit_info from any session (usage-limit bars). */
+  onRateLimitInfo?: (info: unknown) => void
 }
 
 async function assertDirectory(cwd: string): Promise<void> {
@@ -65,6 +67,7 @@ export class SessionManager {
         ...(allowBypass ? { allowBypass: true } : {}),
         ...(args.resumeId ? { resumeId: args.resumeId } : {}),
         ...(args.fork ? { fork: args.fork } : {}),
+        ...(this.deps.onRateLimitInfo ? { onRateLimitInfo: this.deps.onRateLimitInfo } : {}),
         onEvent: (e) => {
           if (e.t === 'init') {
             live.sdkSessionId = e.sessionId

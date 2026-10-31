@@ -22,6 +22,7 @@ import type {
 import type { AppPrefs, AppPrefsPatch, AuthStatus, AutoResumeReport, PrefsSetResult, UpdateState } from './app'
 import type { AppInfo, HistorySessionInfo, ProjectInfo, SessionEvent } from './events'
 import type { GitDiff, GitLog, GitStatus } from './git'
+import type { CavemanState, LimitsState } from './limits'
 import type { UsageQuery, UsageSummary } from './usage'
 import { PermissionModeSchema } from './permission-mode'
 import type { PermissionMode } from './permission-mode'
@@ -248,7 +249,9 @@ export const AppPrefsPatchSchema = z
     confirmQuitWhileRunning: Flag,
     autoResume: z.object({ enabled: Flag, prompt: z.string().max(2000) }).partial().strict(),
     allowBypassMode: Flag,
-    autoUpdate: Flag
+    autoUpdate: Flag,
+    showLimitsBar: Flag,
+    showCavemanBadge: Flag
   })
   .partial()
   .strict()
@@ -360,6 +363,14 @@ export interface CcwrapApi {
     /** Quit and install a downloaded update (a no-op unless the state is 'ready'). */
     install(): Promise<boolean>
     onState(cb: (s: UpdateState) => void): () => void
+  }
+  limits: {
+    getState(): Promise<LimitsState>
+    onState(cb: (s: LimitsState) => void): () => void
+  }
+  caveman: {
+    getState(): Promise<CavemanState>
+    onState(cb: (s: CavemanState) => void): () => void
   }
   autoResume: {
     /** Fire-and-forget. */

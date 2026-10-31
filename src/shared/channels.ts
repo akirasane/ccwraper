@@ -62,5 +62,12 @@ export const IpcChannels = {
   updateState: 'update:state',
   updateCheck: 'update:check',
   updateInstall: 'update:install',
-  updateGetState: 'update:getState'
+  updateGetState: 'update:getState',
+  // ---- status bar: usage limits + caveman badge ----
+  /** main -> renderer */
+  limitsState: 'limits:state',
+  limitsGet: 'limits:get',
+  /** main -> renderer */
+  cavemanState: 'caveman:state',
+  cavemanGet: 'caveman:get'
 } as const

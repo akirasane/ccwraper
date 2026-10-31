@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '../shared/channels'
 import type { FsChangedPayload, PtyDataPayload, PtyExitPayload } from '../shared/config'
 import type { AppPrefs, UpdateState } from '../shared/app'
+import type { CavemanState, LimitsState } from '../shared/limits'
 import type { CcwrapApi, SessionEventPayload } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (p: T) => void): () => void {
@@ -56,6 +57,14 @@ const api: CcwrapApi = {
     check: () => ipcRenderer.invoke(IpcChannels.updateCheck),
     install: () => ipcRenderer.invoke(IpcChannels.updateInstall),
     onState: (cb) => subscribe<UpdateState>(IpcChannels.updateState, cb)
+  },
+  limits: {
+    getState: () => ipcRenderer.invoke(IpcChannels.limitsGet),
+    onState: (cb) => subscribe<LimitsState>(IpcChannels.limitsState, cb)
+  },
+  caveman: {
+    getState: () => ipcRenderer.invoke(IpcChannels.cavemanGet),
+    onState: (cb) => subscribe<CavemanState>(IpcChannels.cavemanState, cb)
   },
   autoResume: { report: (r) => ipcRenderer.send(IpcChannels.autoResumeReport, r) },
   git: {

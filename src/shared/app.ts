@@ -28,6 +28,10 @@ export interface AppPrefs {
   allowBypassMode: boolean
   /** Check GitHub releases for a newer version in the background (installed builds only). Manual checks always work. */
   autoUpdate: boolean
+  /** Status bar: 5-hour / 7-day usage-limit bars. */
+  showLimitsBar: boolean
+  /** Status bar: the caveman plugin's token-savings badge. */
+  showCavemanBadge: boolean
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
@@ -44,7 +48,9 @@ export const DEFAULT_PREFS: AppPrefs = {
   confirmQuitWhileRunning: true,
   autoResume: { enabled: false, prompt: DEFAULT_AUTO_RESUME_PROMPT },
   allowBypassMode: false,
-  autoUpdate: true
+  autoUpdate: true,
+  showLimitsBar: true,
+  showCavemanBadge: true
 }
 
 export type AppPrefsPatch = {
@@ -54,6 +60,8 @@ export type AppPrefsPatch = {
   autoResume?: Partial<AutoResumePrefs>
   allowBypassMode?: boolean
   autoUpdate?: boolean
+  showLimitsBar?: boolean
+  showCavemanBadge?: boolean
 }
 
 /** Renderer -> main (fire-and-forget): drives the pause/resume native notifications and the keep-awake lock. */

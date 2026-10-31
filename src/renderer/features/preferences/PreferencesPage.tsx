@@ -386,6 +386,32 @@ export function PreferencesPage(): React.JSX.Element {
             <NotificationsSection prefs={prefs} set={(p) => void set(p)} />
             <HotkeySection prefs={prefs} hotkey={hotkey} set={(p) => void set(p)} />
             <UpdatesSection prefs={prefs} set={(p) => void set(p)} />
+            <Section id="statusbar" title="Status bar">
+              <Row
+                label="Show usage limits"
+                hint="5-hour and 7-day subscription usage with a reset countdown. Updates after the first message of a session."
+                htmlFor="show-limits"
+              >
+                <Toggle
+                  id="show-limits"
+                  checked={prefs.showLimitsBar}
+                  data-testid="show-limits"
+                  onCheckedChange={(v) => void set({ showLimitsBar: v })}
+                />
+              </Row>
+              <Row
+                label="Show caveman badge"
+                hint="Token savings from the caveman plugin. Read-only: ccwraper only reads the plugin's status files."
+                htmlFor="show-caveman"
+              >
+                <Toggle
+                  id="show-caveman"
+                  checked={prefs.showCavemanBadge}
+                  data-testid="show-caveman"
+                  onCheckedChange={(v) => void set({ showCavemanBadge: v })}
+                />
+              </Row>
+            </Section>
             <Section id="bypass" title="Permission modes">
               <Row
                 label="Allow Bypass mode (dangerous)"

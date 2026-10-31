@@ -11,6 +11,7 @@ import { effectiveMode, getCachedCtxWindow, useChatStore } from '@/stores/chat-s
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { ShieldAlert } from 'lucide-react'
 import { isBypass, modeLabel } from '@/features/chat/mode/modes'
+import { CavemanBadge, LimitsCluster } from '@/features/limits/UsageCluster'
 import { CostMeter } from './CostMeter'
 
 const STATE: Record<string, { label: string; dot: string }> = {
@@ -86,7 +87,7 @@ export function StatusBar(): React.JSX.Element {
   return (
     <footer
       data-testid="status-bar"
-      className="flex h-[26px] shrink-0 items-center gap-2 border-t border-border bg-bg-1 px-3 text-xs text-fg-3"
+      className="flex h-[26px] shrink-0 items-center gap-2 overflow-hidden whitespace-nowrap border-t border-border bg-bg-1 px-3 text-xs text-fg-3"
     >
       <span className="inline-flex items-center gap-1.5 text-fg-2" data-testid="status-state">
         <span className={`size-1.5 rounded-full ${st.dot}`} aria-hidden />
@@ -135,6 +136,8 @@ export function StatusBar(): React.JSX.Element {
       {sep}
       <CostMeter value={conv?.lastResult?.costUsd} />
       <span className="ml-auto flex min-w-0 items-center gap-2">
+        <CavemanBadge />
+        <LimitsCluster />
         {conv?.cwd && (
           <span data-testid="status-cwd" className="min-w-0 truncate font-mono" title={conv.cwd}>
             {conv.cwd}

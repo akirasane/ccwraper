@@ -6,11 +6,13 @@ import type { SessionEventPayload } from '../shared/ipc'
 import { registerIpc } from './ipc'
 import type { Disposer } from './ipc/dispose'
 import { isAppNavigation } from './navigation'
-import { prefsPath, transcriptsRoot, usageCachePath, usageLedgerPath, windowStatePath } from './paths'
+import { claudeConfigDir, limitsPath, prefsPath, transcriptsRoot, usageCachePath, usageLedgerPath, windowStatePath } from './paths'
 import { AutoResumeMain } from './services/autoresume-main'
 import { AuthStatusService } from './services/auth-status'
 import { runClaude } from './services/claude-cli'
+import { CavemanService } from './services/caveman-service'
 import { GitService } from './services/git-service'
+import { LimitsService } from './services/limits-service'
 import { HotkeyService } from './services/hotkey-service'
 import { NotificationService } from './services/notification-service'
 import { PluginRegistry } from './services/plugin-registry'
@@ -69,6 +71,16 @@ const updates = new UpdateService({
   log: (m) => console.warn('[ccwrap]', m)
 })
 
+const limits = new LimitsService({
+  file: limitsPath(userData),
+  broadcast: (state) => getWindow()?.webContents.send(IpcChannels.limitsState, state),
+  log: (m) => console.warn('[ccwrap]', m)
+})
+const caveman = new CavemanService({
+  configDir: claudeConfigDir(),
+  broadcast: (state) => getWindow()?.webContents.send(IpcChannels.cavemanState, state)
+})
+
 // Session event fan-out: renderer, notifications, usage ledger.
 const manager: SessionManager = new SessionManager(
   (localId, event) => {
@@ -77,7 +89,7 @@ const manager: SessionManager = new SessionManager(
     notifications.onSessionEvent(localId, event)
     ledger.onSessionEvent(localId, event, manager.info(localId))
   },
-  { registry: pluginRegistry, allowBypass: () => prefs.get().allowBypassMode }
+  { registry: pluginRegistry, allowBypass: () => prefs.get().allowBypassMode, onRateLimitInfo: (info) => limits.ingest(info) }
 )
 const notifications = new NotificationService({ getWindow, prefs, manager })
 const autoResume = new AutoResumeMain({ powerSave: powerSaveBlocker, announce: (r) => notifications.announce(r) })
@@ -108,6 +120,7 @@ function createWindow(): void {
   win = w
   if (maximized) w.maximize()
   w.once('ready-to-show', () => w.show())
+  w.on('focus', () => void caveman.refresh())
   // Never open in-app windows; hand http(s) links to the OS browser.
   w.webContents.setWindowOpenHandler(({ url }) => {
     if (isHttpUrl(url)) void shell.openExternal(url)
@@ -188,9 +201,12 @@ if (!app.requestSingleInstanceLock()) {
       usage,
       git,
       autoResume: { report: (r) => autoResume.report(r) },
-      update: updates
+      update: updates,
+      limits,
+      caveman
     })
     updates.start()
+    caveman.start()
     hotkey.apply(prefs.get().hotkey)
     prefs.onChange((p) => hotkey.apply(p.hotkey))
     createWindow()
@@ -210,6 +226,7 @@ app.on('before-quit', shutdown)
 app.on('will-quit', () => {
   hotkey.dispose()
   updates.dispose()
+  caveman.dispose()
   autoResume.dispose()
   notifications.dispose()
 })

@@ -47,6 +47,8 @@ export interface AdapterOptions {
   /** Initial prompt. Further prompts via send(). */
   prompt: string
   onEvent: (e: SessionEvent) => void
+  /** Every SDK `rate_limit_info` (feeds the status-bar usage limits); independent of the rate_limited event. */
+  onRateLimitInfo?: (info: unknown) => void
 }
 
 export interface AdapterSession {
@@ -669,6 +671,13 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
     try {
       for await (const m of q) {
         opts.onRaw?.(m)
+        if (m.type === 'rate_limit_event') {
+          try {
+            opts.onRateLimitInfo?.(m.rate_limit_info)
+          } catch {
+            /* the status bar is best effort */
+          }
+        }
         // A turn the CLI starts on its own (a background task finished and Claude reacts to it) has no
         // send(): the first main-thread API request after a result is its start. Without this the UI stays
         // "Idle" while the reply streams and the usage accumulator is still stopped from the last turn.
