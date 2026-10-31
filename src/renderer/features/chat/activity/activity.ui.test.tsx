@@ -190,6 +190,24 @@ describe('WorkingRow', () => {
     expect(screen.getByTestId('working-agents')).toHaveTextContent('1 agent')
   })
 
+  it('pins running agents in a dock above the composer with a Stop button', () => {
+    put(reduceAll(fresh(), eventFixtures.subagentTurn, T0))
+    render(<ChatView target={target} />)
+    const dock = screen.getByTestId('agent-dock')
+    expect(screen.getByTestId('agent-dock-title')).toHaveTextContent('1 agent running')
+    const row = within(dock).getByTestId('agent-dock-row')
+    fireEvent.click(within(row).getByRole('button', { name: /Stop agent/ }))
+    expect(api.session.stopTask).toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: /1 agent running/ }))
+    expect(screen.queryByTestId('agent-dock-row')).toBeNull()
+  })
+
+  it('shows no dock when no agent is running', () => {
+    put(fresh())
+    render(<ChatView target={target} />)
+    expect(screen.queryByTestId('agent-dock')).toBeNull()
+  })
+
   it('after the result a background agent shows as "running in background", not as a working turn', () => {
     put(reduceAll(fresh(), eventFixtures.subagentTurn, T0))
     render(<ChatView target={target} />)
