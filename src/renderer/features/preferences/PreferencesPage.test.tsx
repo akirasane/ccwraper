@@ -38,6 +38,12 @@ function setup(hotkeyError?: string) {
   ;(window as unknown as { ccwrap: unknown }).ccwrap = {
     prefs: { get: vi.fn(async () => structuredClone(DEFAULT_PREFS)), set, onChanged: vi.fn(() => () => {}) },
     app: { info: vi.fn(async () => info) },
+    update: {
+      getState: vi.fn(async () => ({ kind: 'uptodate' })),
+      check: vi.fn(async () => ({ kind: 'uptodate' })),
+      install: vi.fn(async () => true),
+      onState: vi.fn(() => () => {})
+    },
     pty: { listShells: vi.fn(async () => [{ id: 'pwsh', label: 'PowerShell 7', path: 'p', isDefault: true }]) }
   }
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -109,7 +115,7 @@ describe('PreferencesPage', () => {
     expect(set).not.toHaveBeenCalled()
   })
 
-  it('shows About fields and Updates: manual, and has the usage-limit slot', async () => {
+  it('shows About fields and and has the usage-limit slot', async () => {
     setup()
     expect((await screen.findByTestId('about-version')).textContent).toBe('0.1.0')
     expect(screen.getByTestId('about-claude-version').textContent).toBe('2.1.0')
@@ -117,8 +123,18 @@ describe('PreferencesPage', () => {
     expect(screen.getByTestId('about-sdk').textContent).toBe('0.2.9')
     expect(screen.getByTestId('about-userdata').textContent).toBe('C:\\ud')
     expect(screen.getByTestId('about-trash').textContent).toBe('C:\\ud\\trash')
-    expect(screen.getByTestId('about-updates').textContent).toBe('manual')
     expect(screen.getByTestId('prefs-usage-limit')).toBeTruthy()
+  })
+
+  it('Updates section: version, status, manual check and the auto toggle', async () => {
+    setup()
+    expect((await screen.findByTestId('update-current')).textContent).toBe('0.1.0')
+    await waitFor(() => expect(screen.getByTestId('update-status').textContent).toMatch(/latest version/))
+    const w = (window as unknown as { ccwrap: { update: { check: ReturnType<typeof vi.fn> } } }).ccwrap
+    await userEvent.click(screen.getByTestId('update-check'))
+    expect(w.update.check).toHaveBeenCalledTimes(1)
+    await userEvent.click(screen.getByTestId('update-auto'))
+    await waitFor(() => expect(set).toHaveBeenCalledWith({ autoUpdate: false }))
   })
 
   it('changes the default shell via the terminal store', async () => {

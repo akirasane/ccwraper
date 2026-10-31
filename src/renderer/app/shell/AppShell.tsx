@@ -17,6 +17,7 @@ import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogH
 import { useChatStore } from '@/stores/chat-store'
 import { useDirtyRegistry } from '@/stores/dirty-registry'
 import { cwdKey, useWorkspaceStore } from '@/stores/workspace-store'
+import { UpdateBanner } from '@/features/updates/UpdateBanner'
 import { LeftRail } from './LeftRail'
 import { useProjectList } from './ProjectPicker'
 import { StatusBar } from './StatusBar'
@@ -159,6 +160,7 @@ function Shell(): React.JSX.Element {
   return (
     <div data-testid="app-shell" className="flex h-screen flex-col bg-bg-0 text-fg">
       <TitleBar />
+      <UpdateBanner />
       <div className="flex min-h-0 flex-1">
         <LeftRail disabled={missing} />
         <div className="flex min-w-0 flex-1 flex-col">

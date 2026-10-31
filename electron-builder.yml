@@ -29,7 +29,11 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   deleteAppDataOnUninstall: false
-publish: null
+publish:
+  provider: github
+  owner: akirasane
+  repo: ccwraper
+  releaseType: release
 electronFuses:
   runAsNode: false
   enableNodeOptionsEnvironmentVariable: false

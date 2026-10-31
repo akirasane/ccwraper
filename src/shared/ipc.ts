@@ -19,7 +19,7 @@ import type {
   ResolvedSettingsView,
   ShellProfile
 } from './config'
-import type { AppPrefs, AppPrefsPatch, AuthStatus, AutoResumeReport, PrefsSetResult } from './app'
+import type { AppPrefs, AppPrefsPatch, AuthStatus, AutoResumeReport, PrefsSetResult, UpdateState } from './app'
 import type { AppInfo, HistorySessionInfo, ProjectInfo, SessionEvent } from './events'
 import type { GitDiff, GitLog, GitStatus } from './git'
 import type { UsageQuery, UsageSummary } from './usage'
@@ -247,7 +247,8 @@ export const AppPrefsPatchSchema = z
       .strict(),
     confirmQuitWhileRunning: Flag,
     autoResume: z.object({ enabled: Flag, prompt: z.string().max(2000) }).partial().strict(),
-    allowBypassMode: Flag
+    allowBypassMode: Flag,
+    autoUpdate: Flag
   })
   .partial()
   .strict()
@@ -352,6 +353,14 @@ export interface CcwrapApi {
     onChanged(cb: (p: AppPrefs) => void): () => void
   }
   usage: { summary(q: UsageQuery): Promise<UsageSummary> }
+  update: {
+    getState(): Promise<UpdateState>
+    /** Manual check; resolves with the resulting state and never rejects for network/repo errors. */
+    check(): Promise<UpdateState>
+    /** Quit and install a downloaded update (a no-op unless the state is 'ready'). */
+    install(): Promise<boolean>
+    onState(cb: (s: UpdateState) => void): () => void
+  }
   autoResume: {
     /** Fire-and-forget. */
     report(r: AutoResumeReport): void

@@ -56,5 +56,11 @@ export const IpcChannels = {
   gitLog: 'git:log',
   // ---- P4 WP14 ----
   /** Fire-and-forget (ipcRenderer.send / ipcMain.on). */
-  autoResumeReport: 'autoresume:report'
+  autoResumeReport: 'autoresume:report',
+  // ---- auto-update ----
+  /** main -> renderer */
+  updateState: 'update:state',
+  updateCheck: 'update:check',
+  updateInstall: 'update:install',
+  updateGetState: 'update:getState'
 } as const

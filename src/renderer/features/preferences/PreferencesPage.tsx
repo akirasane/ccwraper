@@ -4,10 +4,11 @@ import type { AppPrefs, AppPrefsPatch, HotkeyStatus } from '@shared/app'
 import type { ShellId, ShellProfile } from '@shared/config'
 import type { AppInfo } from '@shared/events'
 import { useModePrefs } from '@/features/chat/mode/mode-prefs'
-import { Input, Toggle, fieldClass } from '@/components/ui'
+import { Button, Input, Toggle, fieldClass } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { AutoResumeCard } from '@/features/autoresume/AutoResumeCard'
 import { useTerminalStore } from '@/features/terminal/terminal-store'
+import { describeUpdate, useUpdateState } from '@/features/updates/use-update-state'
 import { acceleratorFromEvent } from './accelerator'
 
 const PREFS_KEY = ['prefs'] as const
@@ -280,6 +281,57 @@ function ShellSection(): React.JSX.Element {
   )
 }
 
+function UpdatesSection({ prefs, set }: { prefs: AppPrefs; set: (p: AppPrefsPatch) => void }): React.JSX.Element {
+  const state = useUpdateState()
+  const info = useQuery<AppInfo>({ queryKey: ['app', 'info'], queryFn: () => window.ccwrap.app.info(), retry: false })
+  const [checking, setChecking] = React.useState(false)
+  const disabled = state.kind === 'disabled'
+  const check = (): void => {
+    setChecking(true)
+    void Promise.resolve(window.ccwrap.update.check())
+      .catch(() => {})
+      .finally(() => setChecking(false))
+  }
+  return (
+    <Section id="updates" title="Updates">
+      <Row label="Current version" htmlFor="update-check">
+        <span data-testid="update-current" className="font-mono text-sm text-fg-2">
+          {info.data ? `${info.data.version}${info.data.packaged ? '' : ' (dev)'}` : '...'}
+        </span>
+      </Row>
+      <Row label="Status">
+        <span
+          role="status"
+          data-testid="update-status"
+          data-kind={state.kind}
+          className={cn('max-w-xs text-right text-sm', state.kind === 'error' ? 'text-danger' : 'text-fg-3')}
+        >
+          {describeUpdate(state)}
+        </span>
+      </Row>
+      <Row label="Check now" hint="Looks for a newer release on GitHub.">
+        <Button
+          id="update-check"
+          size="sm"
+          data-testid="update-check"
+          disabled={disabled || checking || state.kind === 'checking' || state.kind === 'downloading'}
+          onClick={check}
+        >
+          Check for updates
+        </Button>
+      </Row>
+      <Row label="Check for updates automatically" hint="At startup and every few hours." htmlFor="update-auto">
+        <Toggle
+          id="update-auto"
+          checked={prefs.autoUpdate}
+          data-testid="update-auto"
+          onCheckedChange={(v) => set({ autoUpdate: v })}
+        />
+      </Row>
+    </Section>
+  )
+}
+
 function Field({ label, value, testId }: { label: string; value: string | undefined; testId: string }): React.JSX.Element {
   return (
     <div className="flex gap-4 py-2 text-base">
@@ -308,7 +360,6 @@ function AboutSection(): React.JSX.Element {
           <Field label="Agent SDK" value={i.sdkVersion} testId="about-sdk" />
           <Field label="Data folder" value={i.userDataDir} testId="about-userdata" />
           <Field label="Trash folder" value={i.trashDir} testId="about-trash" />
-          <Field label="Updates" value="manual" testId="about-updates" />
         </dl>
       )}
     </Section>
@@ -334,6 +385,7 @@ export function PreferencesPage(): React.JSX.Element {
           <>
             <NotificationsSection prefs={prefs} set={(p) => void set(p)} />
             <HotkeySection prefs={prefs} hotkey={hotkey} set={(p) => void set(p)} />
+            <UpdatesSection prefs={prefs} set={(p) => void set(p)} />
             <Section id="bypass" title="Permission modes">
               <Row
                 label="Allow Bypass mode (dangerous)"

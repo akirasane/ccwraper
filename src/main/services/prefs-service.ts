@@ -25,7 +25,8 @@ const PrefsFileSchema = z.object({
     .optional(),
   confirmQuitWhileRunning: z.boolean().optional(),
   autoResume: z.object({ enabled: z.boolean(), prompt: z.string().max(2000) }).partial().optional(),
-  allowBypassMode: z.boolean().optional()
+  allowBypassMode: z.boolean().optional(),
+  autoUpdate: z.boolean().optional()
 })
 
 function clean<T extends object>(o: T | undefined): Partial<T> {
@@ -41,7 +42,8 @@ export function mergePrefs(base: AppPrefs, patch: AppPrefsPatch): AppPrefs {
     hotkey: { ...base.hotkey, ...clean(patch.hotkey) },
     confirmQuitWhileRunning: patch.confirmQuitWhileRunning ?? base.confirmQuitWhileRunning,
     autoResume: { ...base.autoResume, ...clean(patch.autoResume) },
-    allowBypassMode: patch.allowBypassMode ?? base.allowBypassMode
+    allowBypassMode: patch.allowBypassMode ?? base.allowBypassMode,
+    autoUpdate: patch.autoUpdate ?? base.autoUpdate
   }
 }
 

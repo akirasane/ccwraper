@@ -121,6 +121,8 @@ jobs:
         run: |
           cd dist
           ls -l "ccwraper-Setup-$VERSION.exe"
+          # electron-updater needs latest.yml and the blockmap next to the installer.
+          ls -l latest.yml "ccwraper-Setup-$VERSION.exe.blockmap"
           sha256sum "ccwraper-Setup-$VERSION.exe" > "ccwraper-Setup-$VERSION.exe.sha256"
           cat "ccwraper-Setup-$VERSION.exe.sha256"
 
@@ -135,6 +137,8 @@ jobs:
           gh release create "$TAG" \
             "dist/ccwraper-Setup-$VERSION.exe" \
             "dist/ccwraper-Setup-$VERSION.exe.sha256" \
+            "dist/ccwraper-Setup-$VERSION.exe.blockmap" \
+            "dist/latest.yml" \
             --title "ccwraper $TAG" \
             --generate-notes \
             --verify-tag \

@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { IpcChannels } from '../shared/channels'
 import type { FsChangedPayload, PtyDataPayload, PtyExitPayload } from '../shared/config'
-import type { AppPrefs } from '../shared/app'
+import type { AppPrefs, UpdateState } from '../shared/app'
 import type { CcwrapApi, SessionEventPayload } from '../shared/ipc'
 
 function subscribe<T>(channel: string, cb: (p: T) => void): () => void {
@@ -51,6 +51,12 @@ const api: CcwrapApi = {
     onChanged: (cb) => subscribe<AppPrefs>(IpcChannels.prefsChanged, cb)
   },
   usage: { summary: (q) => ipcRenderer.invoke(IpcChannels.usageSummary, q) },
+  update: {
+    getState: () => ipcRenderer.invoke(IpcChannels.updateGetState),
+    check: () => ipcRenderer.invoke(IpcChannels.updateCheck),
+    install: () => ipcRenderer.invoke(IpcChannels.updateInstall),
+    onState: (cb) => subscribe<UpdateState>(IpcChannels.updateState, cb)
+  },
   autoResume: { report: (r) => ipcRenderer.send(IpcChannels.autoResumeReport, r) },
   git: {
     status: (a) => ipcRenderer.invoke(IpcChannels.gitStatus, a),

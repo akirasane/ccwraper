@@ -14,6 +14,8 @@ import { registerPrefsIpc } from './prefs'
 import type { PrefsIpcDeps } from './prefs'
 import { registerPtyIpc } from './pty'
 import { registerSessionIpc } from './session'
+import { registerUpdateIpc } from './update'
+import type { UpdateIpcDeps } from './update'
 import { registerUsageIpc } from './usage'
 import type { GitService } from '../services/git-service'
 import type { UsageService } from '../services/usage-service'
@@ -33,6 +35,8 @@ export interface IpcDeps {
   hotkey: PrefsIpcDeps['hotkey']
   usage: Pick<UsageService, 'summary'>
   git: Pick<GitService, 'status' | 'diff' | 'log'>
+  /** Auto-update service (optional so older callers keep working). */
+  update?: UpdateIpcDeps
   /** WP14 sink for renderer auto-resume reports (optional so older callers keep working). */
   autoResume?: Parameters<typeof registerAutoResumeIpc>[0]
 }
@@ -47,6 +51,7 @@ export function registerIpc(deps: IpcDeps): Disposer {
     registerUsageIpc(deps.usage),
     registerGitIpc(deps.git),
     deps.autoResume ? registerAutoResumeIpc(deps.autoResume) : () => {},
+    deps.update ? registerUpdateIpc(deps.update) : () => {},
     registerConfigIpc({ send: deps.send, registry: deps.registry }),
     registerItemsIpc({ send: deps.send, registry: deps.registry }),
     registerMcpIpc(),

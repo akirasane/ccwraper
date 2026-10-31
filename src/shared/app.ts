@@ -26,6 +26,8 @@ export interface AppPrefs {
   autoResume: AutoResumePrefs
   /** Lets the permission-mode menu offer Bypass (dangerous). Off by default; Bypass itself is never persisted. */
   allowBypassMode: boolean
+  /** Check GitHub releases for a newer version in the background (installed builds only). Manual checks always work. */
+  autoUpdate: boolean
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
@@ -41,7 +43,8 @@ export const DEFAULT_PREFS: AppPrefs = {
   hotkey: { enabled: false, accelerator: 'Control+Alt+Space' },
   confirmQuitWhileRunning: true,
   autoResume: { enabled: false, prompt: DEFAULT_AUTO_RESUME_PROMPT },
-  allowBypassMode: false
+  allowBypassMode: false,
+  autoUpdate: true
 }
 
 export type AppPrefsPatch = {
@@ -50,6 +53,7 @@ export type AppPrefsPatch = {
   confirmQuitWhileRunning?: boolean
   autoResume?: Partial<AutoResumePrefs>
   allowBypassMode?: boolean
+  autoUpdate?: boolean
 }
 
 /** Renderer -> main (fire-and-forget): drives the pause/resume native notifications and the keep-awake lock. */
@@ -82,3 +86,14 @@ export interface AuthStatus {
   /** Short reason for 'unknown' (timeout, binary missing, unparsable). Never account details. */
   reason?: string
 }
+
+/** In-app auto-update state (main -> renderer). Zod-free so the sandboxed preload can bundle it. */
+export type UpdateState =
+  | { kind: 'disabled' }
+  | { kind: 'idle' }
+  | { kind: 'checking' }
+  | { kind: 'available'; version: string }
+  | { kind: 'downloading'; version: string; percent: number }
+  | { kind: 'ready'; version: string }
+  | { kind: 'uptodate' }
+  | { kind: 'error'; message: string }

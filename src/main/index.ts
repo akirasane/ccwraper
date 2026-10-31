@@ -1,3 +1,4 @@
+import { autoUpdater } from 'electron-updater'
 import { app, BrowserWindow, Menu, powerSaveBlocker, screen, shell } from 'electron'
 import { join } from 'node:path'
 import { IpcChannels } from '../shared/ipc'
@@ -16,6 +17,7 @@ import { PluginRegistry } from './services/plugin-registry'
 import { PrefsService } from './services/prefs-service'
 import { installQuitGuard } from './services/quit-guard'
 import { SessionManager } from './services/session-manager'
+import { UpdateService } from './services/update-service'
 import { UsageLedger } from './services/usage-ledger'
 import { UsageService } from './services/usage-service'
 import { loadWindowState, trackWindowState } from './services/window-state'
@@ -58,6 +60,14 @@ const ledger = new UsageLedger(usageLedgerPath(userData))
 const git = new GitService()
 const auth = new AuthStatusService(runClaude)
 const hotkey = new HotkeyService({ getWindow })
+const updates = new UpdateService({
+  // autoUpdater is a lazy getter; it is only touched in a packaged build.
+  ...(app.isPackaged ? { updater: autoUpdater } : {}),
+  isPackaged: app.isPackaged,
+  prefs,
+  broadcast: (state) => getWindow()?.webContents.send(IpcChannels.updateState, state),
+  log: (m) => console.warn('[ccwrap]', m)
+})
 
 // Session event fan-out: renderer, notifications, usage ledger.
 const manager: SessionManager = new SessionManager(
@@ -177,8 +187,10 @@ if (!app.requestSingleInstanceLock()) {
       hotkey,
       usage,
       git,
-      autoResume: { report: (r) => autoResume.report(r) }
+      autoResume: { report: (r) => autoResume.report(r) },
+      update: updates
     })
+    updates.start()
     hotkey.apply(prefs.get().hotkey)
     prefs.onChange((p) => hotkey.apply(p.hotkey))
     createWindow()
@@ -197,6 +209,7 @@ function shutdown(): void {
 app.on('before-quit', shutdown)
 app.on('will-quit', () => {
   hotkey.dispose()
+  updates.dispose()
   autoResume.dispose()
   notifications.dispose()
 })
