@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -224,7 +224,8 @@ describe.skipIf(!hasGit)('real git, temp repos', { timeout: 90_000 }, () => {
     expect(by.get('ทดสอบ é.txt')).toMatchObject({ worktree: 'M' })
     expect(by.get('fresh.txt')).toMatchObject({ untracked: true, index: '?', worktree: '?' })
     expect(by.get('newdir/')).toMatchObject({ untracked: true, isDir: true })
-    expect(r.root.toLowerCase()).toBe(d.toLowerCase())
+    // CI temp dirs use 8.3 short names (RUNNER~1); git reports the long form.
+    expect(realpathSync.native(r.root).toLowerCase()).toBe(realpathSync.native(d).toLowerCase())
   })
 
   it('conflicts from a merge', async () => {

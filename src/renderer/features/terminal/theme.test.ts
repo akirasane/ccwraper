@@ -17,7 +17,7 @@ const readme = readFileSync(resolve(__dirname, '../../../../docs/design/README.m
 describe('terminal theme', () => {
   it('ITheme equals the README table', () => {
     const section = readme.slice(readme.indexOf('## Terminal theme'))
-    const json = /```json\n([\s\S]*?)```/.exec(section)![1]!
+    const json = /```json\r?\n([\s\S]*?)```/.exec(section)![1]!
     expect(TERMINAL_THEME).toEqual(JSON.parse(json))
   })
 
