@@ -1,10 +1,15 @@
 name: Release
 
-# Two ways to release:
-#  1. Push a tag that matches package.json, e.g. `npm version minor && git push --follow-tags`.
-#  2. Run this workflow manually from main and pick a bump. It bumps package.json, commits, tags, then builds and publishes.
+# Three ways to release:
+#  1. Automatic: every push to main (code changes only) picks a bump from the commit messages since the last tag
+#     (feat -> minor, anything else -> patch; breaking changes stay minor until 1.0), bumps package.json, tags, builds and publishes.
+#     Put [skip release] in a commit message to opt out.
+#  2. Push a tag that matches package.json, e.g. `npm version minor && git push --follow-tags`.
+#  3. Run this workflow manually from main and pick a bump.
 on:
   push:
+    branches: [main]
+    paths-ignore: ['docs/**', '**/*.md', '.github/workflows/ci.yml']
     tags: ['v[0-9]+.[0-9]+.[0-9]+*']
   workflow_dispatch:
     inputs:
@@ -26,9 +31,13 @@ jobs:
     name: Build installer and publish GitHub release
     runs-on: windows-latest
     timeout-minutes: 60
+    # The bump commit is pushed with GITHUB_TOKEN, which does not retrigger workflows; this guard is belt and braces.
+    if: >-
+      github.event_name != 'push' || github.ref_type == 'tag' ||
+      (!startsWith(github.event.head_commit.message, 'chore(release)') && !contains(github.event.head_commit.message, '[skip release]'))
     steps:
       - name: Refuse manual runs from anything but main
-        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        if: github.ref_type == 'branch' && github.ref != 'refs/heads/main'
         shell: bash
         run: |
           echo "Manual releases must run from main (got $GITHUB_REF)." >&2
@@ -43,12 +52,18 @@ jobs:
           node-version: 26
           cache: npm
 
-      - name: Bump version, commit and tag (manual runs only)
-        if: github.event_name == 'workflow_dispatch'
+      - name: Bump version, commit and tag (branch runs only)
+        if: github.ref_type == 'branch'
         shell: bash
         env:
           BUMP: ${{ inputs.bump }}
         run: |
+          if [ -z "$BUMP" ]; then
+            LAST=$(git describe --tags --abbrev=0 2>/dev/null || true)
+            RANGE=${LAST:+$LAST..HEAD}
+            if git log --format=%s $RANGE | grep -qE '^feat(\(.+\))?!?:|!:'; then BUMP=minor; else BUMP=patch; fi
+            echo "Auto bump: $BUMP"
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           npm version "$BUMP" -m "chore(release): %s"
