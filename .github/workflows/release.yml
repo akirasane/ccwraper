@@ -1,0 +1,126 @@
+name: Release
+
+# Two ways to release:
+#  1. Push a tag that matches package.json, e.g. `npm version minor && git push --follow-tags`.
+#  2. Run this workflow manually from main and pick a bump. It bumps package.json, commits, tags, then builds and publishes.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump (creates the version commit and the tag on main)
+        type: choice
+        options: [patch, minor, major, prerelease]
+        default: patch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build installer and publish GitHub release
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Refuse manual runs from anything but main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        shell: bash
+        run: |
+          echo "Manual releases must run from main (got $GITHUB_REF)." >&2
+          exit 1
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Bump version, commit and tag (manual runs only)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version "$BUMP" -m "chore(release): %s"
+          git push origin HEAD:main --follow-tags
+
+      - name: Resolve version and check the tag
+        id: ver
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          if [ "$EVENT" = "push" ] && [ "$REF_NAME" != "$TAG" ]; then
+            echo "Tag $REF_NAME does not match package.json version $VERSION (expected $TAG)." >&2
+            exit 1
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "A release for $TAG already exists; refusing to overwrite it." >&2
+            exit 1
+          fi
+          case "$VERSION" in *-*) PRE=--prerelease ;; *) PRE= ;; esac
+          {
+            echo "version=$VERSION"
+            echo "tag=$TAG"
+            echo "prerelease=$PRE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure the Electron binary is downloaded
+        shell: bash
+        run: test -f node_modules/electron/dist/electron.exe || node node_modules/electron/install.js
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Check the main bundle only imports declared dependencies
+        run: npx tsx scripts/check-main-deps.ts
+
+      # dist:win runs electron-vite build and then electron-builder with --publish never.
+      - name: Build the NSIS installer
+        run: npm run dist:win
+
+      - name: Checksum
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          cd dist
+          ls -l "ccwraper-Setup-$VERSION.exe"
+          sha256sum "ccwraper-Setup-$VERSION.exe" > "ccwraper-Setup-$VERSION.exe.sha256"
+          cat "ccwraper-Setup-$VERSION.exe.sha256"
+
+      - name: Publish the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.ver.outputs.version }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          PRE: ${{ steps.ver.outputs.prerelease }}
+        run: |
+          gh release create "$TAG" \
+            "dist/ccwraper-Setup-$VERSION.exe" \
+            "dist/ccwraper-Setup-$VERSION.exe.sha256" \
+            --title "ccwraper $TAG" \
+            --generate-notes \
+            --verify-tag \
+            $PRE

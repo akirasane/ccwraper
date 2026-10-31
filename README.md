@@ -42,3 +42,12 @@ npm run spike                           # headless live SDK check, spends API bu
 
 - When a plan limit (for example the 5-hour limit) stops a session, the tab shows a countdown and, if "Auto-resume after usage limit" is on in Preferences (off by default), sends the continuation message once the limit resets (plus a 15 s margin). **Auto-resume only works while ccwraper is running**: closing the app, or a sleeping or powered-off machine, cancels nothing but sends nothing either. A pause that was pending when the app was closed is restored on the next start and resumes at once if its reset time has passed. It never approves permission requests, and at most 3 automatic resumes per session per hour are sent. The app keeps the PC awake while a pause is pending.
 - `npm run smoke` also covers Usage, Git, Preferences, the command palette and opening and closing a tab. `CCWRAP_SMOKE_EXE=dist\win-unpacked\ccwraper.exe npm run smoke` runs the same checks against the packaged app.
+
+## CI and releases (GitHub Actions)
+
+- **CI** (`.github/workflows/ci.yml`): every push to `main` and every pull request runs typecheck, tests, build and the main-bundle dependency check on `windows-latest` (Node 26). Pushes to `main` also build the unpacked app (`npm run dist:dir`) to catch packaging breakage. Nothing is published by CI.
+- **Release** (`.github/workflows/release.yml`) builds the NSIS installer and publishes a GitHub release with `ccwraper-Setup-<version>.exe` and a `.sha256` file, using generated release notes. A version with a `-` (for example `1.0.0-rc.1`) is published as a pre-release. It refuses to overwrite an existing release and re-runs typecheck, tests and the dependency check first. Two ways to start it:
+  1. **Tag push:** `npm version minor` (or `patch`, `major`, `1.0.0`), then `git push --follow-tags`. The tag must equal `v<package.json version>`.
+  2. **Manual:** Actions, Release, Run workflow, from `main`, choose a bump. The workflow bumps `package.json`, commits `chore(release): x.y.z`, tags, pushes, then builds and publishes. If the build fails after the push, delete the tag (`git push origin :refs/tags/vX.Y.Z`) and fix forward; the version commit stays.
+- The installer is **unsigned**, so Windows SmartScreen warns on first run. It bundles Anthropic's `claude.exe` from the Agent SDK (about 300 MB): check the SDK's license terms before making the repository or its releases public.
+- Auto-update is not implemented: users download new releases manually.
