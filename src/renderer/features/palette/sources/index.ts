@@ -1,5 +1,6 @@
 import type { CommandSourceHook, PaletteCommand } from '@/lib/commands/types'
 import { useActionCommands } from './actions'
+import { useModeCommands } from './modes'
 import { useItemCommands } from './items'
 import { useNavigationCommands } from './navigation'
 import { useProjectCommands } from './projects'
@@ -11,6 +12,7 @@ import { useTabCommands } from './tabs'
 export const COMMAND_SOURCES: readonly CommandSourceHook[] = [
   useTabCommands,
   useActionCommands,
+  useModeCommands,
   useNavigationCommands,
   useSessionCommands,
   useProjectCommands,

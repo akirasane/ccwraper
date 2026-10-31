@@ -1,21 +1,11 @@
-import { ArrowUp, ShieldCheck, Square } from 'lucide-react'
+import { ArrowUp, Square } from 'lucide-react'
 import * as React from 'react'
-import type { PermissionMode } from '@shared/ipc'
-import { Button, Chip, Kbd } from '@/components/ui'
+import { Button, Kbd } from '@/components/ui'
 import { setComposerInserter } from '@/lib/composer-bus'
 import { useChatStore } from '@/stores/chat-store'
 import { selectIsRunning } from './model/selectors'
 import { ModelMenu } from './ModelMenu'
-
-const CYCLE: PermissionMode[] = ['default', 'acceptEdits', 'plan']
-const MODE_LABEL: Partial<Record<PermissionMode, string>> = {
-  default: 'Default',
-  acceptEdits: 'Accept edits',
-  plan: 'Plan',
-  bypassPermissions: 'Bypass',
-  dontAsk: "Don't ask",
-  auto: 'Auto'
-}
+import { ModeMenu } from './mode/ModeMenu'
 
 export interface ComposerProps {
   convId: string
@@ -30,7 +20,6 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
     return c ? selectIsRunning(c) : false
   })
   const hasPending = useChatStore((s) => (s.convs[convId]?.pending.length ?? 0) > 0)
-  const mode = useChatStore((s) => s.convs[convId]?.meta.permissionMode ?? s.modes[convId] ?? 'default') as PermissionMode
   // The draft lives in the store so it survives tab switches (ChatView remounts per tab).
   const text = useChatStore((s) => s.drafts[convId] ?? '')
   const setText = React.useCallback((v: string) => useChatStore.getState().setDraft(convId, v), [convId])
@@ -77,10 +66,6 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
   const stop = (): void => {
     void useChatStore.getState().interrupt(convId)
   }
-  const cycleMode = (): void => {
-    const i = CYCLE.indexOf(mode)
-    void useChatStore.getState().setPermissionMode(convId, CYCLE[(i + 1) % CYCLE.length]!)
-  }
 
   return (
     <div className="relative shrink-0 px-6 pb-4 pt-2" data-testid="composer-dock">
@@ -105,10 +90,7 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
             className="block max-h-[220px] w-full resize-none bg-transparent px-3.5 pb-1 pt-3 text-md leading-[1.55] text-fg outline-none placeholder:text-fg-muted disabled:cursor-not-allowed disabled:opacity-[0.42]"
           />
           <div className="flex items-center gap-2 px-2.5 pb-2.5 pt-1">
-            <Chip onClick={cycleMode} disabled={disabled} aria-label={`Permission mode: ${MODE_LABEL[mode] ?? mode}`} title="Cycle permission mode">
-              <ShieldCheck size={12} aria-hidden />
-              {MODE_LABEL[mode] ?? mode}
-            </Chip>
+            <ModeMenu convId={convId} disabled={disabled} />
             <ModelMenu convId={convId} disabled={disabled} />
             <div className="min-w-0 flex-1" />
             <span className="flex items-center gap-1.5 text-xs text-fg-3">

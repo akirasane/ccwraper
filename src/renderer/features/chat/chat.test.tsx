@@ -183,15 +183,17 @@ describe('Composer', () => {
     expect(api.session.interrupt).not.toHaveBeenCalled()
   })
 
-  it('mode chip cycles default -> acceptEdits -> plan', async () => {
+  it('mode menu switches default -> acceptEdits -> plan', async () => {
     useChatStore.getState().createConv({ ...target, localId: 'L1' })
     render(<Composer convId="c1" />)
     const chip = () => screen.getByRole('button', { name: /Permission mode/ })
     expect(chip()).toHaveTextContent('Default')
     await userEvent.click(chip())
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: /Accept edits/ }))
     expect(api.session.setPermissionMode).toHaveBeenLastCalledWith('L1', 'acceptEdits')
-    expect(chip()).toHaveTextContent('Accept edits')
+    await waitFor(() => expect(chip()).toHaveTextContent('Accept edits'))
     await userEvent.click(chip())
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: /Plan/ }))
     expect(api.session.setPermissionMode).toHaveBeenLastCalledWith('L1', 'plan')
   })
 

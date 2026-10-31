@@ -7,16 +7,11 @@ import { useNow } from '@/lib/use-now'
 import { useAppInfo } from '@/features/sessions/queries'
 import { modelLabel, useModels } from '@/features/chat/ModelMenu'
 import { assumedContextWindow } from '@shared/models'
-import { getCachedCtxWindow, useChatStore } from '@/stores/chat-store'
+import { effectiveMode, getCachedCtxWindow, useChatStore } from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
-import type { PermissionMode } from '@shared/ipc'
+import { ShieldAlert } from 'lucide-react'
+import { isBypass, modeLabel } from '@/features/chat/mode/modes'
 import { CostMeter } from './CostMeter'
-
-const MODES: { value: PermissionMode; label: string }[] = [
-  { value: 'default', label: 'Default' },
-  { value: 'acceptEdits', label: 'Accept edits' },
-  { value: 'plan', label: 'Plan' }
-]
 
 const STATE: Record<string, { label: string; dot: string }> = {
   idle: { label: 'Idle', dot: 'bg-ok' },
@@ -79,15 +74,13 @@ export function StatusBar(): React.JSX.Element {
   const convId = useWorkspaceStore((s) => s.activeConvId)
   const branch = useWorkspaceStore((s) => s.activeBranch)
   const conv = useChatStore((s) => (convId ? s.convs[convId] : undefined))
-  const localMode = useChatStore((s) => (convId ? s.modes[convId] : undefined))
-  const setMode = useChatStore((s) => s.setPermissionMode)
+  const mode = useChatStore((s) => (convId ? effectiveMode(s, convId) : 'default'))
   const app = useAppInfo().data
   const models = useModels(conv?.localId)
 
   const st = STATE[conv?.status ?? 'idle'] ?? STATE.idle!
   const ctx = conv ? selectLiveContext(conv, getCachedCtxWindow(conv.meta.model), assumedContextWindow(conv.meta.model)) : undefined
-  const mode = conv?.meta.permissionMode ?? localMode ?? 'default'
-  const modes = MODES.some((m) => m.value === mode) ? MODES : [...MODES, { value: mode as PermissionMode, label: mode }]
+  const bypass = isBypass(mode)
   const claude = app ? `claude ${app.claudeVersion ?? '?'} (${app.claudeSource})` : undefined
 
   return (
@@ -108,19 +101,16 @@ export function StatusBar(): React.JSX.Element {
         </>
       )}
       {sep}
-      <select
-        aria-label="Permission mode"
-        value={mode}
-        disabled={!convId}
-        onChange={(e) => convId && void setMode(convId, e.target.value as PermissionMode)}
-        className="h-5 rounded-xs border border-transparent bg-transparent px-1 text-xs text-fg-2 hover:bg-bg-3 disabled:opacity-40"
+      {/* Display-only: the mode is changed from the composer menu or the palette. */}
+      <span
+        data-testid="status-mode"
+        data-bypass={bypass || undefined}
+        title={bypass ? 'Bypass: every tool call runs without asking' : 'Permission mode'}
+        className={bypass ? 'inline-flex items-center gap-1 rounded-xs border border-danger-border bg-danger-bg px-1.5 text-danger' : 'text-fg-2'}
       >
-        {modes.map((m) => (
-          <option key={m.value} value={m.value}>
-            {m.label}
-          </option>
-        ))}
-      </select>
+        {bypass && <ShieldAlert size={11} aria-hidden />}
+        {modeLabel(mode)}
+      </span>
       {ctx !== undefined && (
         <>
           {sep}

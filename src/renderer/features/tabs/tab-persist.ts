@@ -1,3 +1,5 @@
+import { PermissionModeSchema, type PermissionMode } from '@shared/ipc'
+import { useChatStore } from '@/stores/chat-store'
 import { useWorkspaceStore, type TabRef } from '@/stores/workspace-store'
 
 /** localStorage key for the open tabs (P4 D2). */
@@ -9,6 +11,8 @@ export interface PersistedTab {
   cwd: string
   sessionId?: string
   title?: string
+  /** Last chosen mode, never Bypass (a restored tab starts in Default unless this is set). */
+  mode?: PermissionMode
 }
 export interface PersistedTabs {
   tabs: PersistedTab[]
@@ -16,7 +20,11 @@ export interface PersistedTabs {
 }
 
 /** Only tabs with a session survive a restart; the active one is stored under its history conv id. */
-export function serializeTabs(tabs: TabRef[], activeConvId: string | undefined): PersistedTabs {
+export function serializeTabs(
+  tabs: TabRef[],
+  activeConvId: string | undefined,
+  modes: Record<string, PermissionMode> = {}
+): PersistedTabs {
   const kept = tabs.filter((t) => !!t.sessionId)
   const active = kept.find((t) => t.convId === activeConvId)
   return {
@@ -24,7 +32,10 @@ export function serializeTabs(tabs: TabRef[], activeConvId: string | undefined):
       convId: `hist-${t.sessionId}`,
       cwd: t.cwd,
       sessionId: t.sessionId,
-      ...(t.title ? { title: t.title } : {})
+      ...(t.title ? { title: t.title } : {}),
+      ...(modes[t.convId] && modes[t.convId] !== 'default' && modes[t.convId] !== 'bypassPermissions'
+        ? { mode: modes[t.convId] }
+        : {})
     })),
     ...(active ? { activeConvId: `hist-${active.sessionId}` } : {})
   }
@@ -44,7 +55,10 @@ export function parseTabs(raw: string | null): PersistedTabs | undefined {
           convId: typeof o.convId === 'string' ? o.convId : `hist-${o.sessionId}`,
           cwd: o.cwd,
           sessionId: o.sessionId,
-          ...(typeof o.title === 'string' && o.title ? { title: o.title } : {})
+          ...(typeof o.title === 'string' && o.title ? { title: o.title } : {}),
+          ...(PermissionModeSchema.safeParse(o.mode).success && o.mode !== 'bypassPermissions' && o.mode !== 'default'
+            ? { mode: o.mode as PermissionMode }
+            : {})
         })
       }
     }
@@ -66,7 +80,7 @@ export function readPersistedTabs(): PersistedTabs | undefined {
 function write(): void {
   try {
     const { tabs, activeConvId } = useWorkspaceStore.getState()
-    window.localStorage.setItem(TABS_KEY, JSON.stringify(serializeTabs(tabs, activeConvId)))
+    window.localStorage.setItem(TABS_KEY, JSON.stringify(serializeTabs(tabs, activeConvId, useChatStore.getState().modes)))
   } catch {
     /* storage unavailable: tabs just will not come back */
   }
@@ -75,16 +89,23 @@ function write(): void {
 /** Write `tabs.v1` (debounced 300 ms) on every tab-list or active-tab change. Returns the unsubscribe. */
 export function startTabPersistence(): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined
-  const off = useWorkspaceStore.subscribe((s, prev) => {
-    if (s.tabs === prev.tabs && s.activeConvId === prev.activeConvId) return
+  const schedule = (): void => {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => {
       timer = undefined
       write()
     }, DEBOUNCE_MS)
+  }
+  const off = useWorkspaceStore.subscribe((s, prev) => {
+    if (s.tabs === prev.tabs && s.activeConvId === prev.activeConvId) return
+    schedule()
+  })
+  const offModes = useChatStore.subscribe((s, prev) => {
+    if (s.modes !== prev.modes) schedule()
   })
   return () => {
     off()
+    offModes()
     if (timer) {
       clearTimeout(timer)
       write()

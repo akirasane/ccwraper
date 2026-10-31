@@ -10,6 +10,8 @@ import {
 } from '@/features/chat/model/reducer'
 import { selectIsRunning, selectRunningTasks } from '@/features/chat/model/selectors'
 import type { ChatTarget, ConvState } from '@/features/chat/model/types'
+import { isBypass, modeLabel } from '@/features/chat/mode/modes'
+import { toast } from '@/components/ui/toaster'
 
 /** Main caps live sessions at this many; the renderer suspends the least recently used idle one first (P4 D2). */
 export const MAX_LIVE_SESSIONS = 5
@@ -56,12 +58,16 @@ interface ChatState {
     updatedInput?: Record<string, unknown>
   ) => Promise<void>
   setPermissionMode: (convId: string, mode: PermissionMode) => Promise<void>
+  /** Restores a persisted (never Bypass) mode for a tab whose session has not started yet. */
+  seedMode: (convId: string, mode: PermissionMode) => void
   setModel: (convId: string, model: string) => Promise<void>
   setNotice: (convId: string, notice: string | undefined) => void
 }
 
 // Events that arrive before start() resolves have no binding yet; replayed on bind.
 const orphans = new Map<string, SessionEvent[]>()
+// Mode asked for at session start, checked against the init echo (the engine's answer is the truth).
+const startRequested = new Map<string, PermissionMode>()
 // Handles of sessions we closed on purpose: their trailing events must not pile up as orphans.
 const retired = new Set<string>()
 // Delta coalescing: at most one store update per animation frame.
@@ -133,6 +139,18 @@ function markTasksStopping(c: ConvState, only?: string): ConvState {
   return tasks ? { ...c, tasks } : c
 }
 
+/** The mode to show: a live session reports its own (init echo or confirmed change); otherwise what the next start will request. Never a stale replayed mode. */
+export function effectiveMode(s: Pick<ChatState, 'convs' | 'modes'>, convId: string): PermissionMode {
+  const c = s.convs[convId]
+  const live = !!c?.localId && !c.closed
+  const m = live ? (c.meta.permissionMode ?? s.modes[convId]) : s.modes[convId]
+  return (m ?? 'default') as PermissionMode
+}
+
+function reasonOf(err: unknown): string {
+  return (err instanceof Error ? err.message : String(err)).replace(/^Error invoking remote method '[^']*': (Error: )?/, '')
+}
+
 export const useChatStore = create<ChatState>((set, get) => {
   const patch = (convId: string, fn: (c: ConvState) => ConvState): void =>
     set((s) => {
@@ -156,9 +174,24 @@ export const useChatStore = create<ChatState>((set, get) => {
           continue
         }
         if (event.t === 'result' && event.contextWindow) cacheCtxWindow(c.meta.model, event.contextWindow)
+        if (event.t === 'init') verifyStartMode(convId, event.permissionMode)
         convs[convId] = reduce(c, event, now)
       }
       return { convs }
+    })
+  }
+
+  /** The init echo is the truth. A mismatch with what start asked for gets a toast, and the UI follows the engine. */
+  const verifyStartMode = (convId: string, engine: string | undefined): void => {
+    const asked = startRequested.get(convId)
+    startRequested.delete(convId)
+    if (!asked || !engine || engine === asked) return
+    // Deferred: applyBatch is inside a set() call.
+    queueMicrotask(() => {
+      set((s) => ({ modes: { ...s.modes, [convId]: engine as PermissionMode } }))
+      toast.error(`Could not start in ${modeLabel(asked)} mode`, {
+        description: `The session is in ${modeLabel(engine)} mode. ${isBypass(asked) ? "The folder's settings or this Claude Code build may disable Bypass." : 'This Claude Code build or the folder settings may not allow it.'}`
+      })
     })
   }
 
@@ -206,10 +239,22 @@ export const useChatStore = create<ChatState>((set, get) => {
       void _l
       void _c
       const resume = c.meta.sessionId ?? c.resumeSessionId
+      // Bypass never survives a suspend: the resumed session starts in Default.
+      const wasBypass = isBypass(effectiveMode(get(), convId))
       set((s) => ({
         localToConv: Object.fromEntries(Object.entries(s.localToConv).filter(([k]) => k !== localId)),
-        convs: { ...s.convs, [convId]: { ...rest, ...(resume ? { resumeSessionId: resume } : {}), status: 'idle' } }
+        ...(wasBypass ? { modes: { ...s.modes, [convId]: 'default' as const } } : {}),
+        convs: {
+          ...s.convs,
+          [convId]: {
+            ...rest,
+            ...(wasBypass ? { meta: { ...rest.meta, permissionMode: 'default' } } : {}),
+            ...(resume ? { resumeSessionId: resume } : {}),
+            status: 'idle'
+          }
+        }
       }))
+      if (wasBypass) toast.info('Bypass mode ended', { description: 'This session was suspended. It resumes in Default mode.' })
       try {
         await window.ccwrap.session.close(localId)
       } catch {
@@ -297,6 +342,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           await window.ccwrap.session.send({ localId: c.localId, text })
         } else {
           const mode = get().modes[convId]
+          if (mode) startRequested.set(convId, mode)
           const model = get().draftModels[convId]
           const { localId } = await window.ccwrap.session.start({
             cwd: c.cwd,
@@ -308,6 +354,11 @@ export const useChatStore = create<ChatState>((set, get) => {
           get().bindLocalId(convId, localId)
         }
       } catch (err) {
+        startRequested.delete(convId)
+        if (!c.localId && isBypass(get().modes[convId])) {
+          set((s) => ({ modes: { ...s.modes, [convId]: 'default' } }))
+          toast.error('Could not start in Bypass mode', { description: reasonOf(err) })
+        }
         fail(convId, err)
       }
     },
@@ -352,6 +403,9 @@ export const useChatStore = create<ChatState>((set, get) => {
     },
 
     setPermissionMode: async (convId, mode) => {
+      const prev = effectiveMode(get(), convId)
+      const prevMeta = get().convs[convId]?.meta.permissionMode
+      const prevModes = get().modes[convId]
       set((s) => ({ modes: { ...s.modes, [convId]: mode } }))
       patch(convId, (c) => ({ ...c, meta: { ...c.meta, permissionMode: mode } }))
       const localId = get().convs[convId]?.localId
@@ -359,8 +413,21 @@ export const useChatStore = create<ChatState>((set, get) => {
       try {
         await window.ccwrap.session.setPermissionMode(localId, mode)
       } catch (err) {
-        fail(convId, err)
+        // Refused: put the previous mode back. Never show a mode the engine is not in.
+        set((s) => {
+          const modes = { ...s.modes }
+          if (prevModes) modes[convId] = prevModes
+          else delete modes[convId]
+          return { modes }
+        })
+        patch(convId, (c) => ({ ...c, meta: { ...c.meta, permissionMode: prevMeta ?? prev } }))
+        toast.error(`Could not switch to ${modeLabel(mode)} mode`, { description: reasonOf(err) })
       }
+    },
+
+    seedMode: (convId, mode) => {
+      if (isBypass(mode)) return
+      set((s) => ({ modes: { ...s.modes, [convId]: mode } }))
     },
 
     setModel: async (convId, model) => {

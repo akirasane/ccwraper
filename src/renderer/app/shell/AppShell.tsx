@@ -5,6 +5,7 @@ import type { ChatTarget } from '@/features/chat/model/types'
 import { useFsChangedInvalidation } from '@/lib/config-queries'
 import { FirstRunCard } from '@/features/onboarding/FirstRunCard'
 import { CloseTabDialog } from '@/features/tabs/CloseTabDialog'
+import { BypassConfirmDialog } from '@/features/chat/mode/choose-mode'
 import { useAutoResume } from '@/features/autoresume/autoresume'
 import { readPersistedTabs, startTabPersistence } from '@/features/tabs/tab-persist'
 import { useBackgroundAttention } from '@/features/tabs/use-background-attention'
@@ -206,6 +207,7 @@ function Shell(): React.JSX.Element {
       <StatusBar />
       <DiscardGuard />
       <CloseTabDialog />
+      <BypassConfirmDialog />
       <Suspense fallback={null}>
         <CommandPalette />
       </Suspense>

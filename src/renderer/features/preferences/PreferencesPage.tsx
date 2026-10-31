@@ -3,6 +3,7 @@ import * as React from 'react'
 import type { AppPrefs, AppPrefsPatch, HotkeyStatus } from '@shared/app'
 import type { ShellId, ShellProfile } from '@shared/config'
 import type { AppInfo } from '@shared/events'
+import { useModePrefs } from '@/features/chat/mode/mode-prefs'
 import { Input, Toggle, fieldClass } from '@/components/ui'
 import { cn } from '@/lib/cn'
 import { AutoResumeCard } from '@/features/autoresume/AutoResumeCard'
@@ -63,6 +64,7 @@ function usePrefs() {
       try {
         const res = await window.ccwrap.prefs.set(patch)
         qc.setQueryData(PREFS_KEY, res.prefs)
+        useModePrefs.getState().set(res.prefs.allowBypassMode === true)
         setHotkey(res.hotkey)
       } catch (err) {
         setSaveError(err instanceof Error ? err.message : 'Could not save preferences.')
@@ -332,6 +334,20 @@ export function PreferencesPage(): React.JSX.Element {
           <>
             <NotificationsSection prefs={prefs} set={(p) => void set(p)} />
             <HotkeySection prefs={prefs} hotkey={hotkey} set={(p) => void set(p)} />
+            <Section id="bypass" title="Permission modes">
+              <Row
+                label="Allow Bypass mode (dangerous)"
+                hint="Adds Bypass to the mode menu. In Bypass every tool call runs without asking, including shell commands and file deletes. Each use still asks you to confirm, and it is never remembered across restarts."
+                htmlFor="allow-bypass"
+              >
+                <Toggle
+                  id="allow-bypass"
+                  checked={prefs.allowBypassMode}
+                  data-testid="allow-bypass"
+                  onCheckedChange={(v) => void set({ allowBypassMode: v })}
+                />
+              </Row>
+            </Section>
             <Section id="quit" title="Quit confirmation">
               <Row
                 label="Confirm before quitting while work is running"

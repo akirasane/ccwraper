@@ -166,15 +166,17 @@ describe('AppShell', () => {
     expect(api.session.interrupt).toHaveBeenCalledWith('L2')
   })
 
-  it('permission-mode selector calls setPermissionMode', async () => {
+  it('permission-mode menu calls setPermissionMode and the status bar shows it', async () => {
     useWorkspaceStore.setState({ cwd: 'C:\\fixture\\alpha' })
     const user = userEvent.setup()
     render(<AppShell />)
     await screen.findByTestId('chat-view')
     const convId = useWorkspaceStore.getState().activeConvId!
     act(() => useChatStore.getState().bindLocalId(convId, 'L3'))
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Permission mode' }), 'plan')
+    await user.click(screen.getByTestId('mode-chip'))
+    await user.click(await screen.findByRole('menuitemradio', { name: /Plan/ }))
     expect(api.session.setPermissionMode).toHaveBeenCalledWith('L3', 'plan')
+    expect(screen.getByTestId('status-mode')).toHaveTextContent('Plan')
   })
 
   it('open folder uses the dialog and selects the folder', async () => {

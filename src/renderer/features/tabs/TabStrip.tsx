@@ -1,8 +1,9 @@
-import { Plus, X } from 'lucide-react'
+import { Plus, ShieldAlert, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TabCountdown } from '@/features/autoresume/TabCountdown'
 import { cn } from '@/lib/cn'
-import { useChatStore } from '@/stores/chat-store'
+import { isBypass } from '@/features/chat/mode/modes'
+import { effectiveMode, useChatStore } from '@/stores/chat-store'
 import { useWorkspaceStore, type TabRef } from '@/stores/workspace-store'
 import { statusText, tabStatus, tabTitle, tabTooltip, type TabStatus } from './tab-status'
 
@@ -19,6 +20,7 @@ const DOT: Record<Exclude<TabStatus, 'idle'>, string> = {
 function Tab({ tab, active }: { tab: TabRef; active: boolean }): React.JSX.Element {
   const conv = useChatStore((s) => s.convs[tab.convId])
   const unread = useWorkspaceStore((s) => !!s.unread[tab.convId])
+  const bypass = useChatStore((s) => isBypass(effectiveMode(s, tab.convId)))
   const activate = useWorkspaceStore((s) => s.activateTab)
   const close = useWorkspaceStore((s) => s.closeTab)
   const status = tabStatus(conv, unread && !active)
@@ -58,6 +60,7 @@ function Tab({ tab, active }: { tab: TabRef; active: boolean }): React.JSX.Eleme
         {status !== 'idle' && (
           <span aria-hidden data-testid="tab-dot" className={cn('size-1.5 shrink-0 rounded-full', DOT[status])} />
         )}
+        {bypass && <ShieldAlert size={11} aria-label="Bypass mode" data-testid="tab-bypass" className="shrink-0 text-danger" />}
         <span className="truncate" data-testid="tab-title">
           {title}
         </span>

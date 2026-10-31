@@ -319,6 +319,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         const convId = `hist-${p.sessionId}`
         loaded.delete(convId)
         chat.createConv({ convId, cwd: p.cwd, resumeSessionId: p.sessionId })
+        // Bypass is never persisted, so a restored tab is Default unless it saved another mode.
+        if (p.mode) chat.seedMode(convId, p.mode)
         restored.push({
           convId,
           cwd: p.cwd,
