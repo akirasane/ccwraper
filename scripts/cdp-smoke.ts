@@ -1,10 +1,11 @@
 // CDP smoke test of the built app: visits every view, opens the terminal, saves screenshots.
 // Run: npm run build && npm run smoke
 // Env (all optional):
-//   CCWRAP_SMOKE_SHOTS   screenshot dir            (default D:\claude-tmp\p3-shots)
-//   CCWRAP_SMOKE_CWD     project to select         (default D:\claude-tmp\p3-live)
+//   CCWRAP_SMOKE_SHOTS   screenshot dir            (default D:\claude-tmp\p4-shots)
+//   CCWRAP_SMOKE_CWD     project to select         (default D:\claude-tmp\p4-live)
 //   CCWRAP_SMOKE_PORT    debugging port            (default 9333)
-//   CCWRAP_SMOKE_DATA    --user-data-dir           (default D:\claude-tmp\p3-smoke-ud)
+//   CCWRAP_SMOKE_DATA    --user-data-dir           (default D:\claude-tmp\p4-smoke-ud)
+//   CCWRAP_SMOKE_EXE     run a packaged exe (dist\win-unpacked\ccwraper.exe) instead of electron + the repo
 //   CLAUDE_CONFIG_DIR    point the app at a sandboxed Claude config (recommended; do NOT redirect USERPROFILE/HOME)
 //   CCWRAP_SMOKE_LIVE=1  also run one cheap haiku subagent turn and check the live activity UI (opt-in: needs a
 //                        login, costs about $0.02, and the CLI loads the user's own hooks and plugins)
@@ -14,10 +15,10 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { Cdp, launchApp, sleep, waitFor } from './cdp-client'
 
-const shots = process.env['CCWRAP_SMOKE_SHOTS'] ?? 'D:\\claude-tmp\\p3-shots'
-const cwd = process.env['CCWRAP_SMOKE_CWD'] ?? 'D:\\claude-tmp\\p3-live'
+const shots = process.env['CCWRAP_SMOKE_SHOTS'] ?? 'D:\\claude-tmp\\p4-shots'
+const cwd = process.env['CCWRAP_SMOKE_CWD'] ?? 'D:\\claude-tmp\\p4-live'
 const port = Number(process.env['CCWRAP_SMOKE_PORT'] ?? 9333)
-const userData = process.env['CCWRAP_SMOKE_DATA'] ?? 'D:\\claude-tmp\\p3-smoke-ud'
+const userData = process.env['CCWRAP_SMOKE_DATA'] ?? 'D:\\claude-tmp\\p4-smoke-ud'
 
 async function main(): Promise<void> {
   mkdirSync(shots, { recursive: true })
@@ -56,7 +57,10 @@ async function main(): Promise<void> {
       ['Memory', 'memory-page', 'smoke-memory.png'],
       ['Skills', 'skills-page', 'smoke-skills.png'],
       ['Agents', 'agents-page', 'smoke-agents.png'],
-      ['Hooks', 'hooks-page', 'smoke-hooks.png']
+      ['Hooks', 'hooks-page', 'smoke-hooks.png'],
+      ['Usage', 'usage-page', 'smoke-usage.png'],
+      ['Git', 'git-page', 'smoke-git.png'],
+      ['Preferences', 'preferences-page', 'smoke-preferences.png']
     ] as const) {
       await step(`view ${label}`, async () => {
         if (!(await cdp.clickSel('nav button, aside button', label))) throw new Error('nav button not found')
@@ -65,6 +69,36 @@ async function main(): Promise<void> {
         await cdp.screenshot(join(shots, file))
       })
     }
+
+    await step('command palette: Ctrl+K, type, Enter opens the Usage view', async () => {
+      await cdp.clickSel('nav button, aside button', 'Sessions')
+      await sleep(300)
+      await cdp.key('k', { code: 'KeyK', ctrl: true, vk: 75 })
+      await waitFor(cdp, `document.querySelector('[data-testid=command-palette]')`, 10_000, 'palette open')
+      await cdp.screenshot(join(shots, 'smoke-palette.png'))
+      await cdp.insertText('usage')
+      await sleep(400)
+      await cdp.key('Enter', { code: 'Enter', vk: 13 })
+      await waitFor(cdp, `document.querySelector('[data-testid=usage-page]')`, 15_000, 'usage-page via palette')
+      await waitFor(cdp, `!document.querySelector('[data-testid=command-palette]')`, 5_000, 'palette closed')
+    })
+
+    await step('tabs: open a second tab, switch, close it', async () => {
+      await cdp.clickSel('nav button, aside button', 'Sessions')
+      const tabs = `document.querySelectorAll('[role=tab][id^=tab-]')`
+      const before = await cdp.eval<number>(`${tabs}.length`)
+      // an empty draft tab is reused by New tab, so give the current one a draft first (never sent)
+      await cdp.clickSel('textarea[aria-label=Message]')
+      await cdp.insertText('smoke draft (not sent)')
+      if (!(await cdp.clickSel('button[aria-label="New tab"]'))) throw new Error('New tab button not found')
+      await waitFor(cdp, `${tabs}.length === ${before + 1}`, 8_000, 'second tab')
+      await cdp.screenshot(join(shots, 'smoke-tabs.png'))
+      if (!(await cdp.clickSel('[role=tab][id^=tab-]'))) throw new Error('first tab not clickable')
+      await sleep(300)
+      await cdp.clickSel('button[aria-label^="Close"][title="Close tab"]')
+      await sleep(600)
+      await waitFor(cdp, `${tabs}.length === ${before}`, 8_000, 'back to the original tab count')
+    })
 
     await step('Commands tab of Skills', async () => {
       if (!(await cdp.clickSel('nav button', 'Skills'))) throw new Error('nav button not found')

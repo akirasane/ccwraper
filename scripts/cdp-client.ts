@@ -12,6 +12,10 @@ export interface LaunchOptions {
   userDataDir: string
   /** Extra env for the Electron process. Never redirect USERPROFILE/HOME here: Electron crashes. */
   env?: Record<string, string>
+  /** Extra Electron command-line args (e.g. --inspect=9230 to reach the main process). */
+  extraArgs?: string[]
+  /** Launch a packaged exe instead of electron + the repo (also CCWRAP_SMOKE_EXE). */
+  exe?: string
 }
 
 export interface Launched {
