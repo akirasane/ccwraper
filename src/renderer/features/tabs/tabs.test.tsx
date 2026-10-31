@@ -260,6 +260,20 @@ describe('status and attention', () => {
     expect(ws().activeConvId).toBe('hist-s-1')
   })
 
+  it('a background AskUserQuestion raises the same toast without leaking the question text', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    render(<AppShell />)
+    await ws().openSession(hist('s-1', 'Parser work'))
+    chat().bindLocalId('hist-s-1', 'LB')
+    await ws().openSession(hist('s-2'))
+    const input = { questions: [{ question: 'Secret plan?', header: 'H', options: [], multiSelect: false }] }
+    act(() => emit('LB', { t: 'permission_request', reqId: 'q1', toolName: 'AskUserQuestion', input }))
+    expect(toast).toHaveBeenCalledTimes(1)
+    const [msg, opts] = vi.mocked(toast).mock.calls[0]!
+    expect(msg).toBe('Parser work needs approval')
+    expect(JSON.stringify([msg, opts])).not.toContain('Secret plan')
+  })
+
   it('no toast for the active tab', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
     render(<AppShell />)

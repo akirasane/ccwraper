@@ -18,6 +18,8 @@ import { useChatStore } from '@/stores/chat-store'
 import { diffFromToolInput } from '../diff/compute-diff'
 import { DiffView } from '../diff/DiffView'
 import { TruncatedText } from '../tools/TruncatedText'
+import { AskUserQuestionDialog } from './AskUserQuestionDialog'
+import { PlanDialog } from './PlanDialog'
 
 const asRec = (v: unknown): Record<string, unknown> => (v && typeof v === 'object' ? (v as Record<string, unknown>) : {})
 
@@ -68,6 +70,8 @@ export function PermissionDialog({ convId }: { convId: string }): React.JSX.Elem
   const allowRef = React.useRef<HTMLButtonElement>(null)
 
   if (!req) return null
+  if (req.toolName === 'AskUserQuestion') return <AskUserQuestionDialog key={req.reqId} convId={convId} req={req} />
+  if (req.toolName === 'ExitPlanMode') return <PlanDialog key={req.reqId} convId={convId} req={req} />
   const { reqId } = req
 
   const deny = (): void => void replyPermission(convId, reqId, 'deny')

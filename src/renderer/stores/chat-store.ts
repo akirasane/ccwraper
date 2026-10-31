@@ -52,7 +52,8 @@ interface ChatState {
     convId: string,
     reqId: string,
     decision: 'allow' | 'deny',
-    remember?: 'once' | 'session' | 'always' | 'user'
+    remember?: 'once' | 'session' | 'always' | 'user',
+    updatedInput?: Record<string, unknown>
   ) => Promise<void>
   setPermissionMode: (convId: string, mode: PermissionMode) => Promise<void>
   setModel: (convId: string, model: string) => Promise<void>
@@ -333,7 +334,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       }
     },
 
-    replyPermission: async (convId, reqId, decision, remember) => {
+    replyPermission: async (convId, reqId, decision, remember, updatedInput) => {
       const localId = get().convs[convId]?.localId
       if (!localId) return
       patch(convId, (x) => resolvePermission(x, reqId, decision, Date.now()))
@@ -342,7 +343,8 @@ export const useChatStore = create<ChatState>((set, get) => {
           localId,
           reqId,
           decision,
-          ...(remember ? { remember } : {})
+          ...(remember ? { remember } : {}),
+          ...(updatedInput ? { updatedInput } : {})
         })
       } catch (err) {
         fail(convId, err)
