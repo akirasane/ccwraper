@@ -4,7 +4,7 @@ import type { ModelOption } from '../../shared/config'
 import type { SessionEvent, SessionStatus } from '../../shared/events'
 import type { PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
 import type { PluginRegistry } from './plugin-registry'
-import { startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
+import { BYPASS_DISABLED, startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
 
 export const MAX_SESSIONS = 5
 
@@ -13,6 +13,8 @@ export interface SessionManagerDeps {
   startSession?: typeof startSdkSession
   /** Fed from `init.plugins` by WP1; WP0 only wires the constructor arg. */
   registry?: PluginRegistry
+  /** Reads the allowBypassMode preference at call time. Defaults to off. */
+  allowBypass?: () => boolean
 }
 
 async function assertDirectory(cwd: string): Promise<void> {
@@ -46,6 +48,8 @@ export class SessionManager {
     // Checked here: the SDK's own spawn error for a bad cwd is misleading ("failed to launch ... libc").
     await assertDirectory(args.cwd)
     if (this.sessions.size >= MAX_SESSIONS) throw new Error(`Session cap reached (${MAX_SESSIONS})`)
+    const allowBypass = this.deps.allowBypass?.() === true
+    if (args.permissionMode === 'bypassPermissions' && !allowBypass) throw new Error(BYPASS_DISABLED)
     const localId = randomUUID()
     const live = { localId, cwd: args.cwd, tasks: new Set<string>() } as LiveSession
     // Reserve slot before the async start so the cap holds under concurrent calls.
@@ -58,6 +62,7 @@ export class SessionManager {
         thinking: true,
         ...(args.model ? { model: args.model } : {}),
         ...(args.permissionMode ? { permissionMode: args.permissionMode } : {}),
+        ...(allowBypass ? { allowBypass: true } : {}),
         ...(args.resumeId ? { resumeId: args.resumeId } : {}),
         ...(args.fork ? { fork: args.fork } : {}),
         onEvent: (e) => {
@@ -136,6 +141,7 @@ export class SessionManager {
     return this.get(localId).adapter.setModel(model)
   }
   setPermissionMode(localId: string, mode: PermissionModeName): Promise<void> {
+    if (mode === 'bypassPermissions' && this.deps.allowBypass?.() !== true) return Promise.reject(new Error(BYPASS_DISABLED))
     return this.get(localId).adapter.setPermissionMode(mode)
   }
   /** Model list is account-wide, so the first successful fetch is cached for the app lifetime. */

@@ -18,6 +18,8 @@ import { resolveClaudeExecutable } from '../paths'
 
 export type PermissionModeName = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'dontAsk' | 'auto'
 
+export const BYPASS_DISABLED = 'Bypass mode is disabled. Turn on "Allow Bypass mode" in Preferences first.'
+
 export type QueryImpl = (p: { prompt: AsyncIterable<SDKUserMessage>; options: Options }) => Query
 
 export type RememberScope = 'once' | 'session' | 'always' | 'user'
@@ -26,6 +28,8 @@ export interface AdapterOptions {
   cwd: string
   model?: string
   permissionMode?: PermissionModeName
+  /** Preference gate: only then is allowDangerouslySkipPermissions passed (needed for Bypass at start or via setPermissionMode). */
+  allowBypass?: boolean
   resumeId?: string
   fork?: boolean
   /** Override binary path; otherwise resolved via resolveClaudeExecutable(). */
@@ -616,6 +620,7 @@ export function mapMessage(m: SDKMessage, state: MapState): SessionEvent[] {
 
 export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSession> {
   const queryFn: QueryImpl = opts.queryImpl ?? (await import('@anthropic-ai/claude-agent-sdk')).query
+  if (opts.permissionMode === 'bypassPermissions' && !opts.allowBypass) throw new Error(BYPASS_DISABLED)
   const input = new InputQueue()
   const pending = new Map<string, { resolve: (r: PermissionResult) => void; suggestions?: PermissionUpdate[] }>()
   const claudePath = opts.claudePath ?? (opts.queryImpl ? undefined : resolveClaudeExecutable())
@@ -627,6 +632,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
     settingSources: opts.settingSources ?? ['user', 'project', 'local'],
     ...(opts.thinking ? { thinking: { type: 'adaptive' as const, display: 'summarized' as const } } : {}),
     permissionMode: (opts.permissionMode ?? 'default') as SdkPermissionMode,
+    ...(opts.allowBypass ? { allowDangerouslySkipPermissions: true } : {}),
     ...(opts.model ? { model: opts.model } : {}),
     ...(opts.resumeId ? { resume: opts.resumeId, forkSession: opts.fork === true } : {}),
     ...(claudePath ? { pathToClaudeCodeExecutable: claudePath } : {}),
@@ -706,7 +712,10 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
       opts.onEvent({ t: 'status', state: 'idle' })
     },
     setModel: (model) => q.setModel(model),
-    setPermissionMode: (mode) => q.setPermissionMode(mode as SdkPermissionMode),
+    setPermissionMode: (mode) => {
+      if (mode === 'bypassPermissions' && !opts.allowBypass) return Promise.reject(new Error(BYPASS_DISABLED))
+      return q.setPermissionMode(mode as SdkPermissionMode)
+    },
     async supportedModels() {
       const models = await q.supportedModels()
       return models.map((m) => ({

@@ -246,7 +246,8 @@ export const AppPrefsPatchSchema = z
       .partial()
       .strict(),
     confirmQuitWhileRunning: Flag,
-    autoResume: z.object({ enabled: Flag, prompt: z.string().max(2000) }).partial().strict()
+    autoResume: z.object({ enabled: Flag, prompt: z.string().max(2000) }).partial().strict(),
+    allowBypassMode: Flag
   })
   .partial()
   .strict()

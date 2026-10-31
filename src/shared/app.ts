@@ -24,6 +24,8 @@ export interface AppPrefs {
   hotkey: { enabled: boolean; accelerator: string }
   confirmQuitWhileRunning: boolean
   autoResume: AutoResumePrefs
+  /** Lets the permission-mode menu offer Bypass (dangerous). Off by default; Bypass itself is never persisted. */
+  allowBypassMode: boolean
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
@@ -38,7 +40,8 @@ export const DEFAULT_PREFS: AppPrefs = {
   },
   hotkey: { enabled: false, accelerator: 'Control+Alt+Space' },
   confirmQuitWhileRunning: true,
-  autoResume: { enabled: false, prompt: DEFAULT_AUTO_RESUME_PROMPT }
+  autoResume: { enabled: false, prompt: DEFAULT_AUTO_RESUME_PROMPT },
+  allowBypassMode: false
 }
 
 export type AppPrefsPatch = {
@@ -46,6 +49,7 @@ export type AppPrefsPatch = {
   hotkey?: Partial<AppPrefs['hotkey']>
   confirmQuitWhileRunning?: boolean
   autoResume?: Partial<AutoResumePrefs>
+  allowBypassMode?: boolean
 }
 
 /** Renderer -> main (fire-and-forget): drives the pause/resume native notifications and the keep-awake lock. */
