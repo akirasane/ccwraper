@@ -16,6 +16,7 @@ import type { ModelOption } from '../../shared/config'
 import type { Block, SessionEvent, SlashCommandInfo, Usage } from '../../shared/events'
 import { limitTypeFromText, looksLikeUsageLimit, normalizeResetsAt, parseLimitReset } from '../../shared/rate-limit'
 import { resolveClaudeExecutable } from '../paths'
+import { createUsageRefresher } from './usage-limits'
 
 export type PermissionModeName = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan' | 'dontAsk' | 'auto'
 
@@ -719,6 +720,24 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
   let interrupted = false
   let running = true
 
+  // The 5h / weekly bars: the SDK only emits rate_limit_event near a threshold, so ask for the real windows
+  // after init and after every turn (throttled, best effort).
+  const queryUsage = (q as unknown as { usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET?: (o: { skipBehaviors: boolean }) => Promise<unknown> })
+    .usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET
+  const refreshUsage =
+    opts.onRateLimitInfo && typeof queryUsage === 'function'
+      ? createUsageRefresher(
+          () => queryUsage.call(q, { skipBehaviors: true }),
+          (l) => {
+            try {
+              opts.onRateLimitInfo?.(l)
+            } catch {
+              /* the status bar is best effort */
+            }
+          }
+        )
+      : undefined
+
   // Full command objects (descriptions, hints, aliases). Best effort: the init event still carries the bare names.
   // supportedCommands() resolves from the initialize handshake, so it does not spend tokens or wait for a prompt.
   try {
@@ -753,6 +772,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
           opts.onEvent({ t: 'status', state: 'running' })
         }
         if (m.type === 'result') acc.finish()
+        if (m.type === 'result' || (m.type === 'system' && (m as { subtype?: string }).subtype === 'init')) void refreshUsage?.()
         for (const e of mapMessage(m, state)) {
           // An interrupted turn ends with an error-subtype result; present it as idle, not error.
           if (interrupted && e.t === 'status' && e.state === 'error') opts.onEvent({ t: 'status', state: 'idle' })
