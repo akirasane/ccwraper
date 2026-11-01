@@ -1,6 +1,6 @@
-import { ArrowUp, Square } from 'lucide-react'
+import { ArrowUp, Paperclip, Square, X } from 'lucide-react'
 import * as React from 'react'
-import { Button, Kbd } from '@/components/ui'
+import { Button, Kbd, toast } from '@/components/ui'
 import { setComposerInserter } from '@/lib/composer-bus'
 import { useChatStore } from '@/stores/chat-store'
 import { selectIsRunning } from './model/selectors'
@@ -9,6 +9,10 @@ import { ModelMenu } from './ModelMenu'
 import { SLASH_LISTBOX_ID, SlashPopup, slashOptionId } from './SlashPopup'
 import { FALLBACK_COMMANDS, filterCommands, slashQuery } from './slash-commands'
 import { ModeMenu } from './mode/ModeMenu'
+import { dataUrl, readImages } from './attachments'
+import { IMAGE_MEDIA_TYPES, type ImageAttachment } from '@shared/ipc'
+
+const NO_IMAGES: ImageAttachment[] = []
 
 export interface ComposerProps {
   convId: string
@@ -27,6 +31,19 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
   const text = useChatStore((s) => s.drafts[convId] ?? '')
   const setText = React.useCallback((v: string) => useChatStore.getState().setDraft(convId, v), [convId])
   const ref = React.useRef<HTMLTextAreaElement>(null)
+  const images = useChatStore((s) => s.draftImages[convId]) ?? NO_IMAGES
+  const fileInput = React.useRef<HTMLInputElement>(null)
+  const [dragging, setDragging] = React.useState(false)
+
+  const attach = async (files: File[]): Promise<void> => {
+    if (files.length === 0) return
+    const cur = useChatStore.getState().draftImages[convId] ?? NO_IMAGES
+    const { accepted, rejected } = await readImages(files, cur.length)
+    if (accepted.length) useChatStore.getState().setDraftImages(convId, [...cur, ...accepted])
+    if (rejected.length) toast.error('Could not attach', { description: rejected.join('\n') })
+  }
+  const removeImage = (idx: number): void =>
+    useChatStore.getState().setDraftImages(convId, images.filter((_, i) => i !== idx))
 
   // The command palette inserts "/name " here through composer-bus.
   React.useEffect(() => {
@@ -97,12 +114,14 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
   }
   const trackCaret = (el: HTMLTextAreaElement): void => setCaret(el.selectionStart ?? el.value.length)
 
-  const canSend = !disabled && !running && text.trim().length > 0
+  const canSend = !disabled && !running && (text.trim().length > 0 || images.length > 0)
   const send = (): void => {
     if (!canSend) return
     const value = text.trim()
+    const imgs = images
     setText('')
-    void useChatStore.getState().submit(convId, value)
+    useChatStore.getState().setDraftImages(convId, [])
+    void useChatStore.getState().submit(convId, value, imgs)
   }
   const stop = (): void => {
     void useChatStore.getState().interrupt(convId)
@@ -121,7 +140,45 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
             onHover={setActiveIdx}
           />
         ) : null}
-        <div className="ccw-composer min-h-[var(--composer-min-h)]" data-running={running} data-testid="composer">
+        <div
+          className="ccw-composer min-h-[var(--composer-min-h)]"
+          data-running={running}
+          data-dragging={dragging || undefined}
+          data-testid="composer"
+          onDragOver={(e) => {
+            if (disabled || !e.dataTransfer.types.includes('Files')) return
+            e.preventDefault()
+            setDragging(true)
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(e) => {
+            setDragging(false)
+            if (disabled || e.dataTransfer.files.length === 0) return
+            e.preventDefault()
+            void attach(Array.from(e.dataTransfer.files))
+          }}
+        >
+          {images.length > 0 ? (
+            <ul className="flex flex-wrap gap-2 px-3 pt-3" data-testid="composer-images" aria-label="Attached images">
+              {images.map((img, i) => (
+                <li key={i} className="relative">
+                  <img
+                    src={dataUrl(img)}
+                    alt={`Attached image ${i + 1}`}
+                    className="h-16 w-16 rounded-sm border border-border object-cover"
+                  />
+                  <button
+                    type="button"
+                    aria-label={`Remove image ${i + 1}`}
+                    onClick={() => removeImage(i)}
+                    className="absolute -right-1.5 -top-1.5 grid h-4 w-4 place-items-center rounded-full border border-border bg-bg-2 text-fg-2 hover:text-fg"
+                  >
+                    <X size={10} aria-hidden />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <textarea
             ref={ref}
             value={text}
@@ -139,6 +196,12 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
               setDismissedFor(null)
             }}
             onSelect={(e) => trackCaret(e.currentTarget)}
+            onPaste={(e) => {
+              const files = Array.from(e.clipboardData.files).filter((f) => f.type.startsWith('image/'))
+              if (files.length === 0) return
+              e.preventDefault()
+              void attach(files)
+            }}
             onKeyDown={(e) => {
               if (popupOpen && !e.nativeEvent.isComposing) {
                 if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -177,6 +240,27 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
           <div className="flex items-center gap-2 px-2.5 pb-2.5 pt-1">
             <ModeMenu convId={convId} disabled={disabled} />
             <ModelMenu convId={convId} disabled={disabled} />
+            <input
+              ref={fileInput}
+              type="file"
+              hidden
+              multiple
+              accept={IMAGE_MEDIA_TYPES.join(',')}
+              data-testid="composer-file-input"
+              onChange={(e) => {
+                void attach(Array.from(e.target.files ?? []))
+                e.target.value = ''
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon-md"
+              aria-label="Attach image"
+              disabled={disabled}
+              onClick={() => fileInput.current?.click()}
+            >
+              <Paperclip size={14} aria-hidden />
+            </Button>
             <div className="min-w-0 flex-1" />
             <span className="flex items-center gap-1.5 text-xs text-fg-3">
               {running ? (

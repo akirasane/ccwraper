@@ -16,7 +16,7 @@ export function registerSessionIpc(manager: SessionManager): Disposer {
   ipcMain.handle(IpcChannels.sessionStart, (_e, raw: unknown) => manager.start(SessionStartSchema.parse(raw)))
   ipcMain.handle(IpcChannels.sessionSend, (_e, raw: unknown) => {
     const a = SessionSendSchema.parse(raw)
-    manager.send(a.localId, a.text)
+    manager.send(a.localId, a.text, a.images)
   })
   ipcMain.handle(IpcChannels.sessionInterrupt, (_e, id: unknown) => manager.interrupt(String(id)))
   ipcMain.handle(IpcChannels.sessionClose, (_e, id: unknown) => manager.close(String(id)))

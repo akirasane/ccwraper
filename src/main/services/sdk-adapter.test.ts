@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk'
-import { mapMessage } from './sdk-adapter'
+import { buildContent, mapMessage } from './sdk-adapter'
 import { normalizeCwdKey } from '../paths'
 
 // Hand-written minimal messages; cast because the SDK types carry many unrelated required fields.
@@ -162,5 +162,23 @@ describe('normalizeCwdKey', () => {
     const b = normalizeCwdKey('D:\\Dev\\Proj')
     expect(a).toBe(b)
     if (process.platform === 'win32') expect(normalizeCwdKey('d:\\dev\\PROJ')).toBe(a)
+  })
+})
+
+describe('buildContent', () => {
+  it('keeps plain text as a string', () => {
+    expect(buildContent('hi')).toBe('hi')
+    expect(buildContent('hi', [])).toBe('hi')
+  })
+  it('puts image blocks before the text block', () => {
+    const c = buildContent('look', [{ mediaType: 'image/png', data: 'AAAA' }]) as unknown as Array<Record<string, unknown>>
+    expect(c).toEqual([
+      { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'AAAA' } },
+      { type: 'text', text: 'look' }
+    ])
+  })
+  it('omits the text block for image-only messages', () => {
+    const c = buildContent('', [{ mediaType: 'image/jpeg', data: 'AAAA' }]) as unknown as unknown[]
+    expect(c).toHaveLength(1)
   })
 })

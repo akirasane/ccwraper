@@ -1,12 +1,26 @@
 import * as React from 'react'
+import type { ImageAttachment } from '@shared/ipc'
+import { dataUrl } from './attachments'
 
-export function UserMessage({ text }: { text: string }): React.JSX.Element {
+export function UserMessage({ text, images }: { text: string; images?: ImageAttachment[] }): React.JSX.Element {
   return (
     <div
       data-testid="user-message"
       className="rounded-md border border-border bg-bg-2 px-3.5 py-2.5 text-md leading-[1.6] text-fg shadow-[var(--highlight-inset)]"
     >
-      <p className="m-0 whitespace-pre-wrap break-words">{text}</p>
+      {images?.length ? (
+        <div className="mb-2 flex flex-wrap gap-2" data-testid="user-images">
+          {images.map((img, i) => (
+            <img
+              key={i}
+              src={dataUrl(img)}
+              alt={`Attached image ${i + 1}`}
+              className="max-h-40 max-w-[240px] rounded-sm border border-border object-contain"
+            />
+          ))}
+        </div>
+      ) : null}
+      {text ? <p className="m-0 whitespace-pre-wrap break-words">{text}</p> : null}
     </div>
   )
 }

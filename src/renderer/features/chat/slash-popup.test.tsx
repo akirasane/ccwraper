@@ -48,7 +48,7 @@ function seedLive(commands?: SlashCommandInfo[], extra: SessionEvent[] = []): vo
 beforeEach(() => {
   vi.clearAllMocks()
   window.localStorage.clear()
-  useChatStore.setState({ convs: {}, localToConv: {}, modes: {}, draftModels: {}, drafts: {} })
+  useChatStore.setState({ convs: {}, localToConv: {}, modes: {}, draftModels: {}, drafts: {}, draftImages: {} })
   ;(window as unknown as { ccwrap: unknown }).ccwrap = api
 })
 
@@ -196,5 +196,39 @@ describe('slash popup', () => {
     )
     await waitFor(() => expect(options()).toHaveLength(1))
     expect(options()[0]).toContain('/newskill')
+  })
+})
+
+describe('image attachments', () => {
+  const png = (): File => new File([new Uint8Array([1, 2, 3])], 'shot.png', { type: 'image/png' })
+
+  it('attaches via the file input, shows a thumbnail, sends with images, then clears', async () => {
+    seedLive()
+    render(<Composer convId="c1" />)
+    fireEvent.change(screen.getByTestId('composer-file-input'), { target: { files: [png()] } })
+    await waitFor(() => expect(screen.getByTestId('composer-images').querySelectorAll('img').length).toBe(1))
+    // images alone are enough to send
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }))
+    await waitFor(() => expect(api.session.send).toHaveBeenCalled())
+    const arg = api.session.send.mock.calls[0]![0]
+    expect(arg.text).toBe('')
+    expect(arg.images).toEqual([{ mediaType: 'image/png', data: 'AQID' }])
+    expect(screen.queryByTestId('composer-images')).toBeNull()
+  })
+
+  it('removes an attachment', async () => {
+    seedLive()
+    render(<Composer convId="c1" />)
+    fireEvent.change(screen.getByTestId('composer-file-input'), { target: { files: [png()] } })
+    await waitFor(() => screen.getByTestId('composer-images'))
+    await userEvent.click(screen.getByRole('button', { name: 'Remove image 1' }))
+    expect(screen.queryByTestId('composer-images')).toBeNull()
+  })
+
+  it('attaches an image pasted into the textarea', async () => {
+    seedLive()
+    render(<Composer convId="c1" />)
+    fireEvent.paste(box(), { clipboardData: { files: [png()], getData: () => '' } })
+    await waitFor(() => screen.getByTestId('composer-images'))
   })
 })

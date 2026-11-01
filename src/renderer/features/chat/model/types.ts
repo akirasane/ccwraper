@@ -1,3 +1,4 @@
+import type { ImageAttachment } from '@shared/ipc'
 // Owned by WP4: the chat view model. Pure data, no React.
 import type { SessionStatus, SlashCommandInfo, TaskStatus, Usage } from '@shared/events'
 
@@ -9,7 +10,7 @@ export type AssistantPart =
   | { kind: 'thinking'; text: string; startedAt?: number; endedAt?: number }
 
 export type ChatItem =
-  | { kind: 'user'; id: string; text: string }
+  | { kind: 'user'; id: string; text: string; images?: ImageAttachment[] }
   | {
       kind: 'assistant'
       id: string

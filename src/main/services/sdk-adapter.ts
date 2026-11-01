@@ -11,6 +11,7 @@ import type {
   SDKMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
+import type { ImageAttachment } from '../../shared/ipc'
 import type { ModelOption } from '../../shared/config'
 import type { Block, SessionEvent, SlashCommandInfo, Usage } from '../../shared/events'
 import { limitTypeFromText, looksLikeUsageLimit, normalizeResetsAt, parseLimitReset } from '../../shared/rate-limit'
@@ -48,13 +49,15 @@ export interface AdapterOptions {
   onStderr?: (line: string) => void
   /** Initial prompt. Further prompts via send(). */
   prompt: string
+  /** Images sent with the initial prompt. */
+  images?: ImageAttachment[]
   onEvent: (e: SessionEvent) => void
   /** Every SDK `rate_limit_info` (feeds the status-bar usage limits); independent of the rate_limited event. */
   onRateLimitInfo?: (info: unknown) => void
 }
 
 export interface AdapterSession {
-  send(text: string): void
+  send(text: string, images?: ImageAttachment[]): void
   interrupt(): Promise<void>
   setModel(model: string): Promise<void>
   setPermissionMode(mode: PermissionModeName): Promise<void>
@@ -72,15 +75,26 @@ export interface AdapterSession {
   close(): void
 }
 
+/** Plain string for text-only prompts; content blocks (images first, then text) when images are attached. */
+export function buildContent(text: string, images?: ImageAttachment[]): SDKUserMessage['message']['content'] {
+  if (!images?.length) return text
+  const blocks: Array<Record<string, unknown>> = images.map((i) => ({
+    type: 'image',
+    source: { type: 'base64', media_type: i.mediaType, data: i.data }
+  }))
+  if (text) blocks.push({ type: 'text', text })
+  return blocks as unknown as SDKUserMessage['message']['content']
+}
+
 /** Minimal push-based async iterable feeding SDK streaming-input mode. */
 class InputQueue implements AsyncIterable<SDKUserMessage> {
   private items: SDKUserMessage[] = []
   private waiter: ((r: IteratorResult<SDKUserMessage>) => void) | null = null
   private closed = false
-  push(text: string): void {
+  push(text: string, images?: ImageAttachment[]): void {
     const msg: SDKUserMessage = {
       type: 'user',
-      message: { role: 'user', content: text },
+      message: { role: 'user', content: buildContent(text, images) },
       parent_tool_use_id: null
     }
     if (this.waiter) {
@@ -682,7 +696,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
       })
   }
 
-  input.push(opts.prompt)
+  input.push(opts.prompt, opts.images)
   opts.onEvent({ t: 'status', state: 'running' })
   const q: Query = queryFn({ prompt: input, options })
   const acc = new TurnUsageAccumulator({ emit: (e) => opts.onEvent(e) })
@@ -740,11 +754,11 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
   })()
 
   return {
-    send(text) {
+    send(text, images) {
       running = true
       acc.reset()
       opts.onEvent({ t: 'status', state: 'running' })
-      input.push(text)
+      input.push(text, images)
     },
     async interrupt() {
       if (!running && pending.size === 0) return

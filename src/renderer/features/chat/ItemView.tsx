@@ -28,7 +28,7 @@ function ToolItem({ convId, toolUseId, depth }: { convId: string; toolUseId: str
 export function ItemView({ convId, item, depth = 0 }: { convId: string; item: ChatItem; depth?: number }): React.JSX.Element {
   switch (item.kind) {
     case 'user':
-      return <UserMessage text={item.text} />
+      return <UserMessage text={item.text} {...(item.images ? { images: item.images } : {})} />
     case 'assistant':
       return <AssistantMessage item={item} />
     case 'tool':

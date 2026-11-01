@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import type { ModelOption } from '../../shared/config'
 import type { SessionEvent, SessionStatus } from '../../shared/events'
-import type { PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
+import type { ImageAttachment, PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
 import type { PluginRegistry } from './plugin-registry'
 import { BYPASS_DISABLED, startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
 
@@ -62,6 +62,7 @@ export class SessionManager {
       live.adapter = await (this.deps.startSession ?? startSdkSession)({
         cwd: args.cwd,
         prompt: args.prompt,
+        ...(args.images?.length ? { images: args.images } : {}),
         // Summarized adaptive thinking: without it the CLI returns thinking blocks with empty text.
         thinking: true,
         ...(args.model ? { model: args.model } : {}),
@@ -136,8 +137,8 @@ export class SessionManager {
     return s
   }
 
-  send(localId: string, text: string): void {
-    this.get(localId).adapter.send(text)
+  send(localId: string, text: string, images?: ImageAttachment[]): void {
+    this.get(localId).adapter.send(text, images)
   }
   async interrupt(localId: string): Promise<void> {
     // Safe no-op for finished/unknown sessions.

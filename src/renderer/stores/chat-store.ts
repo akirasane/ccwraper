@@ -1,3 +1,4 @@
+import type { ImageAttachment } from '@shared/ipc'
 import { create } from 'zustand'
 import type { SessionEvent } from '@shared/events'
 import type { PermissionMode } from '@shared/ipc'
@@ -34,6 +35,9 @@ interface ChatState {
   draftModels: Record<string, string>
   /** Composer text per conversation (P4 D2); survives tab switches, not restarts. */
   drafts: Record<string, string>
+  /** Images attached to the unsent message, per conversation. */
+  draftImages: Record<string, ImageAttachment[]>
+  setDraftImages: (convId: string, images: ImageAttachment[]) => void
   /** Last time each conversation was shown or submitted to (LRU for suspension). */
   lastActive: Record<string, number>
   setDraft: (convId: string, text: string) => void
@@ -47,7 +51,7 @@ interface ChatState {
   seedFromHistory: (convId: string, events: SessionEvent[]) => void
   bindLocalId: (convId: string, localId: string) => void
   applyEvent: (localId: string, e: SessionEvent) => void
-  submit: (convId: string, text: string) => Promise<void>
+  submit: (convId: string, text: string, images?: ImageAttachment[]) => Promise<void>
   interrupt: (convId: string) => Promise<void>
   stopTask: (convId: string, taskId: string) => Promise<void>
   replyPermission: (
@@ -215,7 +219,19 @@ export const useChatStore = create<ChatState>((set, get) => {
     modes: {},
     draftModels: {},
     drafts: {},
+    draftImages: {},
     lastActive: {},
+
+    setDraftImages: (convId, images) =>
+      set((s) => {
+        if (images.length === 0) {
+          if (!s.draftImages[convId]) return s
+          const { [convId]: _i, ...draftImages } = s.draftImages
+          void _i
+          return { draftImages }
+        }
+        return { draftImages: { ...s.draftImages, [convId]: images } }
+      }),
 
     setDraft: (convId, text) =>
       set((s) => {
@@ -289,10 +305,12 @@ export const useChatStore = create<ChatState>((set, get) => {
         const localToConv = Object.fromEntries(Object.entries(s.localToConv).filter(([, v]) => v !== convId))
         if (gone?.localId) retired.add(gone.localId)
         const { [convId]: _d, ...drafts } = s.drafts
+        const { [convId]: _im, ...draftImages } = s.draftImages
         const { [convId]: _a, ...lastActive } = s.lastActive
         void _d
+        void _im
         void _a
-        return { convs, localToConv, drafts, lastActive }
+        return { convs, localToConv, drafts, draftImages, lastActive }
       }),
 
     seedFromHistory: (convId, events) => patch(convId, (c) => reduceAll(c, events, Date.now())),
@@ -320,7 +338,7 @@ export const useChatStore = create<ChatState>((set, get) => {
       else flush() // flush queued deltas first so ordering is preserved
     },
 
-    submit: async (convId, text) => {
+    submit: async (convId, text, images) => {
       const c = get().convs[convId]
       if (!c) return
       if (!c.localId && Object.values(get().convs).filter(isLive).length >= MAX_LIVE_SESSIONS) {
@@ -330,16 +348,17 @@ export const useChatStore = create<ChatState>((set, get) => {
           .sort((a, b) => (get().lastActive[a.convId] ?? 0) - (get().lastActive[b.convId] ?? 0))[0]
         if (!victim) {
           get().setDraft(convId, text)
+          if (images?.length) get().setDraftImages(convId, images)
           fail(convId, new Error(CAP_MESSAGE))
           return
         }
         await get().suspend(victim.convId)
       }
       set((s) => ({ lastActive: { ...s.lastActive, [convId]: Date.now() } }))
-      patch(convId, (x) => addUserItem(x, text, Date.now()))
+      patch(convId, (x) => addUserItem(x, text, Date.now(), images))
       try {
         if (c.localId) {
-          await window.ccwrap.session.send({ localId: c.localId, text })
+          await window.ccwrap.session.send({ localId: c.localId, text, ...(images?.length ? { images } : {}) })
         } else {
           const mode = get().modes[convId]
           if (mode) startRequested.set(convId, mode)
@@ -347,6 +366,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           const { localId } = await window.ccwrap.session.start({
             cwd: c.cwd,
             prompt: text,
+            ...(images?.length ? { images } : {}),
             ...(c.resumeSessionId ? { resumeId: c.resumeSessionId } : {}),
             ...(mode ? { permissionMode: mode } : {}),
             ...(model && model !== 'default' ? { model } : {})

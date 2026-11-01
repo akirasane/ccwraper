@@ -30,17 +30,39 @@ import type { PermissionMode } from './permission-mode'
 export { PermissionModeSchema }
 export type { PermissionMode }
 
-export const SessionStartSchema = z.object({
-  cwd: z.string().min(1),
-  prompt: z.string().min(1),
-  model: z.string().optional(),
-  permissionMode: PermissionModeSchema.optional(),
-  resumeId: z.string().optional(),
-  fork: z.boolean().optional()
+export const IMAGE_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'] as const
+/** Per-image cap on the raw bytes (API limit is 5 MB per image). */
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+export const MAX_IMAGES = 5
+
+export const ImageAttachmentSchema = z.object({
+  mediaType: z.enum(IMAGE_MEDIA_TYPES),
+  /** Base64 without the data: prefix. */
+  data: z
+    .string()
+    .min(1)
+    .max(Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 4)
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/)
 })
+export type ImageAttachment = z.infer<typeof ImageAttachmentSchema>
+const ImagesSchema = z.array(ImageAttachmentSchema).max(MAX_IMAGES)
+
+export const SessionStartSchema = z
+  .object({
+    cwd: z.string().min(1),
+    prompt: z.string(),
+    images: ImagesSchema.optional(),
+    model: z.string().optional(),
+    permissionMode: PermissionModeSchema.optional(),
+    resumeId: z.string().optional(),
+    fork: z.boolean().optional()
+  })
+  .refine((a) => a.prompt.length > 0 || (a.images?.length ?? 0) > 0, { message: 'prompt or image required' })
 export type SessionStartArgs = z.infer<typeof SessionStartSchema>
 
-export const SessionSendSchema = z.object({ localId: z.string(), text: z.string().min(1) })
+export const SessionSendSchema = z
+  .object({ localId: z.string(), text: z.string(), images: ImagesSchema.optional() })
+  .refine((a) => a.text.length > 0 || (a.images?.length ?? 0) > 0, { message: 'text or image required' })
 export type SessionSendArgs = z.infer<typeof SessionSendSchema>
 
 export const PermissionReplySchema = z.object({
