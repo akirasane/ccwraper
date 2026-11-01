@@ -4,6 +4,7 @@ import type { SessionEvent } from '@shared/events'
 import type { PermissionMode } from '@shared/ipc'
 import {
   addUserItem,
+  clearTranscript,
   createConvState,
   reduce,
   reduceAll,
@@ -52,6 +53,8 @@ interface ChatState {
   bindLocalId: (convId: string, localId: string) => void
   applyEvent: (localId: string, e: SessionEvent) => void
   submit: (convId: string, text: string, images?: ImageAttachment[]) => Promise<void>
+  /** `/clear`: clear the visible transcript and, for a live session, the CLI's context. */
+  clearConversation: (convId: string) => Promise<void>
   interrupt: (convId: string) => Promise<void>
   stopTask: (convId: string, taskId: string) => Promise<void>
   replyPermission: (
@@ -381,6 +384,18 @@ export const useChatStore = create<ChatState>((set, get) => {
           set((s) => ({ modes: { ...s.modes, [convId]: 'default' } }))
           toast.error('Could not start in Bypass mode', { description: reasonOf(err) })
         }
+        fail(convId, err)
+      }
+    },
+
+    clearConversation: async (convId) => {
+      const c = get().convs[convId]
+      if (!c) return
+      patch(convId, clearTranscript)
+      if (!c.localId) return
+      try {
+        await window.ccwrap.session.send({ localId: c.localId, text: '/clear' })
+      } catch (err) {
         fail(convId, err)
       }
     },

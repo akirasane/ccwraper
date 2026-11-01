@@ -57,6 +57,20 @@ export function createConvState(target: ChatTarget): ConvState {
   }
 }
 
+/** `/clear`: empty the visible transcript but keep the live session, its metadata and the id counter. */
+export function clearTranscript(conv: ConvState): ConvState {
+  const { turn: _t, lastTurn: _l, lastResult: _r, notice: _n, limit: _li, resumeSessionId: _rs, ...rest } = conv
+  void [_t, _l, _r, _n, _li, _rs]
+  return {
+    ...rest, // resumeSessionId dropped on purpose: the next message must not resume the cleared transcript
+    items: [],
+    tools: {},
+    pending: [],
+    tasks: {},
+    session: { workMs: 0, apiMs: 0, turns: 0 }
+  }
+}
+
 type AssistantItem = Extract<ChatItem, { kind: 'assistant' }>
 
 function sameInput(a: unknown, b: unknown): boolean {

@@ -11,6 +11,9 @@ import { FALLBACK_COMMANDS, filterCommands, slashQuery } from './slash-commands'
 import { ModeMenu } from './mode/ModeMenu'
 import { dataUrl, readImages } from './attachments'
 import { applyMention, mentionAt } from './mentions'
+import { routeSlash } from './slash-router'
+import { useWorkspaceStore } from '@/stores/workspace-store'
+import { usePaletteStore } from '../palette/palette-store'
 import { MENTION_LISTBOX_ID, MentionPopup, mentionOptionId } from './MentionPopup'
 import { IMAGE_MEDIA_TYPES, type ImageAttachment } from '@shared/ipc'
 
@@ -160,10 +163,40 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
     })
   }
 
+  const userCommandNames = React.useMemo(
+    () => new Set(sourceCommands.filter((c) => !c.builtin).map((c) => c.name.toLowerCase())),
+    [sourceCommands]
+  )
+  const runSlashAction = (a: NonNullable<ReturnType<typeof routeSlash>>): void => {
+    const chat = useChatStore.getState()
+    switch (a.kind) {
+      case 'clear':
+        void chat.clearConversation(convId)
+        break
+      case 'model':
+        void chat.setModel(convId, a.model)
+        break
+      case 'view':
+        useWorkspaceStore.getState().setView(a.view)
+        break
+      case 'palette':
+        usePaletteStore.getState().setOpen(true)
+        break
+    }
+  }
+
   const canSend = !disabled && !running && (text.trim().length > 0 || images.length > 0)
   const send = (): void => {
     if (!canSend) return
     const value = text.trim()
+    if (images.length === 0) {
+      const action = routeSlash(value, userCommandNames)
+      if (action) {
+        setText('')
+        runSlashAction(action)
+        return
+      }
+    }
     const imgs = images
     setText('')
     useChatStore.getState().setDraftImages(convId, [])
