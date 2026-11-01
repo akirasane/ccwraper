@@ -1,5 +1,5 @@
 // Owned by WP4: the chat view model. Pure data, no React.
-import type { SessionStatus, TaskStatus, Usage } from '@shared/events'
+import type { SessionStatus, SlashCommandInfo, TaskStatus, Usage } from '@shared/events'
 
 /** Identifies a conversation shown in ChatView. */
 export type ChatTarget = { convId: string; cwd: string; localId?: string; resumeSessionId?: string }
@@ -101,6 +101,8 @@ export interface ConvMeta {
   tools: string[]
   mcp: { name: string; status: string }[]
   slashCommands: string[]
+  /** Full command objects (descriptions etc.) from supportedCommands(); absent until loaded. */
+  commands?: SlashCommandInfo[]
   permissionMode?: string
   cwd?: string
   agents?: string[]

@@ -4,7 +4,10 @@ import { Button, Kbd } from '@/components/ui'
 import { setComposerInserter } from '@/lib/composer-bus'
 import { useChatStore } from '@/stores/chat-store'
 import { selectIsRunning } from './model/selectors'
+import type { SlashCommandInfo } from '@shared/events'
 import { ModelMenu } from './ModelMenu'
+import { SLASH_LISTBOX_ID, SlashPopup, slashOptionId } from './SlashPopup'
+import { FALLBACK_COMMANDS, filterCommands, slashQuery } from './slash-commands'
 import { ModeMenu } from './mode/ModeMenu'
 
 export interface ComposerProps {
@@ -56,6 +59,44 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
     return () => window.removeEventListener('keydown', onKey)
   }, [running, hasPending, convId])
 
+  // ---- Slash-command popup ----
+  const fullCommands = useChatStore((s) => s.convs[convId]?.meta.commands)
+  const commandNames = useChatStore((s) => s.convs[convId]?.meta.slashCommands)
+  const [caret, setCaret] = React.useState(0)
+  const [activeIdx, setActiveIdx] = React.useState(0)
+  const [dismissedFor, setDismissedFor] = React.useState<string | null>(null)
+  const sourceCommands = React.useMemo<SlashCommandInfo[]>(() => {
+    if (fullCommands?.length) return fullCommands
+    if (commandNames?.length)
+      return commandNames.map((n) => ({ name: n.replace(/^\//, ''), description: '', argumentHint: '' }))
+    return FALLBACK_COMMANDS
+  }, [fullCommands, commandNames])
+  const usingFallback = sourceCommands === FALLBACK_COMMANDS
+  const query = disabled ? null : slashQuery(text, Math.min(caret, text.length))
+  const matches = React.useMemo(
+    () => (query === null ? [] : filterCommands(sourceCommands, query)),
+    [sourceCommands, query]
+  )
+  const popupOpen = query !== null && matches.length > 0 && dismissedFor !== text
+  const active = Math.min(activeIdx, Math.max(0, matches.length - 1))
+  React.useEffect(() => setActiveIdx(0), [query])
+
+  const pick = (c: SlashCommandInfo): void => {
+    const ws = text.search(/\s/)
+    const rest = ws < 0 ? '' : text.slice(ws).trimStart()
+    const next = `/${c.name} ${rest}`
+    setText(next)
+    setCaret(c.name.length + 2)
+    setDismissedFor(null)
+    requestAnimationFrame(() => {
+      const el = ref.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(c.name.length + 2, c.name.length + 2)
+    })
+  }
+  const trackCaret = (el: HTMLTextAreaElement): void => setCaret(el.selectionStart ?? el.value.length)
+
   const canSend = !disabled && !running && text.trim().length > 0
   const send = (): void => {
     if (!canSend) return
@@ -71,6 +112,15 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
     <div className="relative shrink-0 px-6 pb-4 pt-2" data-testid="composer-dock">
       <div className="ccw-glow" aria-hidden />
       <div className="relative mx-auto w-full max-w-[var(--chat-max-w)]">
+        {popupOpen ? (
+          <SlashPopup
+            items={matches}
+            activeIndex={active}
+            fallback={usingFallback}
+            onPick={pick}
+            onHover={setActiveIdx}
+          />
+        ) : null}
         <div className="ccw-composer min-h-[var(--composer-min-h)]" data-running={running} data-testid="composer">
           <textarea
             ref={ref}
@@ -80,8 +130,43 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
             aria-label="Message"
             style={{ boxShadow: 'none' }}
             placeholder={disabled ? (disabledReason ?? 'Unavailable') : 'Ask Claude to work on this project...'}
-            onChange={(e) => setText(e.target.value)}
+            aria-autocomplete="list"
+            aria-controls={popupOpen ? SLASH_LISTBOX_ID : undefined}
+            aria-activedescendant={popupOpen && matches[active] ? slashOptionId(matches[active]!.name) : undefined}
+            onChange={(e) => {
+              setText(e.target.value)
+              trackCaret(e.target)
+              setDismissedFor(null)
+            }}
+            onSelect={(e) => trackCaret(e.currentTarget)}
             onKeyDown={(e) => {
+              if (popupOpen && !e.nativeEvent.isComposing) {
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  const n = matches.length
+                  setActiveIdx((active + (e.key === 'ArrowDown' ? 1 : n - 1)) % n)
+                  return
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  if (e.key === 'Enter' && e.shiftKey) return
+                  // A fully typed command name: Enter sends it (below) instead of re-inserting it.
+                  if (e.key === 'Enter' && query === matches[active]!.name) {
+                    e.preventDefault()
+                    send()
+                    return
+                  }
+                  e.preventDefault()
+                  pick(matches[active]!)
+                  return
+                }
+                if (e.key === 'Escape') {
+                  // Popup owns Esc: closes itself, never reaches the global interrupt listener.
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setDismissedFor(text)
+                  return
+                }
+              }
               if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
                 e.preventDefault()
                 send()

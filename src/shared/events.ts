@@ -16,7 +16,19 @@ export type SessionStatus = 'idle' | 'running' | 'waiting_permission' | 'error'
 
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped' | 'killed' | 'paused'
 
+/** One slash command as the SDK reports it (supportedCommands / commands_changed). */
+export interface SlashCommandInfo {
+  name: string
+  description: string
+  argumentHint: string
+  aliases?: string[]
+  /** True for Claude Code's own commands; absent for user/project/plugin/MCP ones. */
+  builtin?: boolean
+}
+
 export type SessionEvent =
+  /** Full slash-command list for the session (REPLACES the previous list). */
+  | { t: 'commands'; commands: SlashCommandInfo[] }
   | {
       t: 'init'
       sessionId: string

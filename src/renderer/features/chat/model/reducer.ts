@@ -239,11 +239,15 @@ function endTurn(conv: ConvState, now: number, interrupted: boolean): ConvState 
 /** Pure reducer. `now` is injected so tests are deterministic; the store passes Date.now(). */
 export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
   switch (e.t) {
+    case 'commands':
+      return { ...conv, meta: { ...conv.meta, commands: e.commands } }
     case 'init':
       // Replace-not-append: init is re-emitted every turn.
       return {
         ...conv,
         meta: {
+          // The full command list arrives separately (and may beat init); keep it.
+          ...(conv.meta.commands ? { commands: conv.meta.commands } : {}),
           ...(e.agents ? { agents: e.agents } : {}),
           ...(e.skills ? { skills: e.skills } : {}),
           ...(e.plugins

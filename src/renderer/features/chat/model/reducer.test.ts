@@ -19,6 +19,17 @@ describe('reducer', () => {
     expect(JSON.stringify(c)).toBe(snap)
   })
 
+  it('stores the full command list in meta and keeps it across a later init', () => {
+    const commands = [{ name: 'compact', description: 'd', argumentHint: '', builtin: true }]
+    let c = reduce(fresh(), { t: 'commands', commands })
+    expect(c.meta.commands).toEqual(commands)
+    c = reduce(c, { t: 'init', sessionId: 's', model: 'm', tools: [], mcp: [], slashCommands: ['compact'], cwd: 'x' })
+    expect(c.meta.commands).toEqual(commands)
+    expect(c.meta.slashCommands).toEqual(['compact'])
+    c = reduce(c, { t: 'commands', commands: [] })
+    expect(c.meta.commands).toEqual([])
+  })
+
   it('streams deltas into one assistant item, then final message replaces (no duplication)', () => {
     let c = fresh()
     c = reduce(c, { t: 'text_delta', msgId: 'm', text: 'Hel' })

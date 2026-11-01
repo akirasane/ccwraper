@@ -12,7 +12,7 @@ import type {
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ModelOption } from '../../shared/config'
-import type { Block, SessionEvent, Usage } from '../../shared/events'
+import type { Block, SessionEvent, SlashCommandInfo, Usage } from '../../shared/events'
 import { limitTypeFromText, looksLikeUsageLimit, normalizeResetsAt, parseLimitReset } from '../../shared/rate-limit'
 import { resolveClaudeExecutable } from '../paths'
 
@@ -104,6 +104,23 @@ class InputQueue implements AsyncIterable<SDKUserMessage> {
       }
     }
   }
+}
+
+/** SDK SlashCommand[] -> plain SlashCommandInfo[]; undefined when the payload is not a list. */
+export function normalizeCommands(raw: unknown): SlashCommandInfo[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const out: SlashCommandInfo[] = []
+  for (const c of raw as Array<Record<string, unknown>>) {
+    if (!c || typeof c['name'] !== 'string' || !c['name']) continue
+    out.push({
+      name: c['name'].replace(/^\//, ''),
+      description: typeof c['description'] === 'string' ? c['description'] : '',
+      argumentHint: typeof c['argumentHint'] === 'string' ? c['argumentHint'] : '',
+      ...(Array.isArray(c['aliases']) ? { aliases: (c['aliases'] as unknown[]).filter((a): a is string => typeof a === 'string') } : {}),
+      ...(c['builtin'] === true ? { builtin: true } : {})
+    })
+  }
+  return out
 }
 
 function mapUsage(u: unknown): Usage {
@@ -422,6 +439,9 @@ export function mapMessage(m: SDKMessage, state: MapState): SessionEvent[] {
               }
             : {})
         })
+      } else if ((m.subtype as string) === 'commands_changed') {
+        const list = normalizeCommands((m as unknown as { commands?: unknown }).commands)
+        if (list) out.push({ t: 'commands', commands: list })
       } else if (m.subtype === 'thinking_tokens') {
         state.acc?.thinkingTokens(m.estimated_tokens)
       } else if (m.subtype === 'task_started') {
@@ -666,6 +686,20 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
   const state: MapState = { msgId: '', acc }
   let interrupted = false
   let running = true
+
+  // Full command objects (descriptions, hints, aliases). Best effort: the init event still carries the bare names.
+  // supportedCommands() resolves from the initialize handshake, so it does not spend tokens or wait for a prompt.
+  try {
+    const p = typeof q.supportedCommands === 'function' ? q.supportedCommands() : undefined
+    void Promise.resolve(p)
+      .then((list) => {
+        const commands = normalizeCommands(list)
+        if (commands) opts.onEvent({ t: 'commands', commands })
+      })
+      .catch(() => undefined)
+  } catch {
+    /* ignore */
+  }
 
   const done = (async () => {
     try {
