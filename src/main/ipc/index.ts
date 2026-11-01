@@ -11,6 +11,8 @@ import { registerFilesIpc } from './files'
 import { registerHistoryIpc } from './history'
 import { registerItemsIpc } from './items'
 import { registerMcpIpc } from './mcp'
+import { registerPluginsIpc } from './plugins'
+import { PluginService } from '../services/plugin-service'
 import { registerPrefsIpc } from './prefs'
 import type { PrefsIpcDeps } from './prefs'
 import { registerPtyIpc } from './pty'
@@ -65,6 +67,7 @@ export function registerIpc(deps: IpcDeps): Disposer {
     registerConfigIpc({ send: deps.send, registry: deps.registry }),
     registerItemsIpc({ send: deps.send, registry: deps.registry }),
     registerMcpIpc(),
+    registerPluginsIpc(new PluginService()),
     registerPtyIpc({ send: deps.send })
   )
 }

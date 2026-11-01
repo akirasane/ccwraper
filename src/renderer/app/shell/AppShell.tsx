@@ -26,6 +26,7 @@ import { TitleBar } from './TitleBar'
 // Lazy so chat startup does not pay for the config pages or the terminal (xterm, CodeMirror).
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 const McpPage = lazy(() => import('@/features/mcp/McpPage').then((m) => ({ default: m.McpPage })))
+const PluginsPage = lazy(() => import('@/features/plugins/PluginsPage').then((m) => ({ default: m.PluginsPage })))
 const MemoryPage = lazy(() => import('@/features/memory/MemoryPage').then((m) => ({ default: m.MemoryPage })))
 const SkillsPage = lazy(() => import('@/features/items/SkillsPage').then((m) => ({ default: m.SkillsPage })))
 const AgentsPage = lazy(() => import('@/features/items/AgentsPage').then((m) => ({ default: m.AgentsPage })))
@@ -169,6 +170,7 @@ function Shell(): React.JSX.Element {
               <Suspense fallback={<Notice title="Loading..." body="" />}>
                 {view === 'settings' && <SettingsPage cwd={cwd} />}
                 {view === 'mcp' && <McpPage cwd={cwd} />}
+                {view === 'plugins' && <PluginsPage cwd={cwd} />}
                 {view === 'memory' && <MemoryPage cwd={cwd} />}
                 {view === 'skills' && <SkillsPage cwd={cwd} />}
                 {view === 'agents' && <AgentsPage cwd={cwd} />}

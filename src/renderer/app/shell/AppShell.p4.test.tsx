@@ -33,7 +33,7 @@ beforeEach(() => {
 
 describe('P4 shell seams', () => {
   it('APP_VIEWS lists the P4 views', () => {
-    expect(APP_VIEWS).toEqual(['chat', 'settings', 'mcp', 'memory', 'skills', 'agents', 'hooks', 'usage', 'git', 'preferences'])
+    expect(APP_VIEWS).toEqual(['chat', 'settings', 'mcp', 'plugins', 'memory', 'skills', 'agents', 'hooks', 'usage', 'git', 'preferences'])
   })
 
   it('the rail has Usage and Git rows, and Preferences under Settings', () => {

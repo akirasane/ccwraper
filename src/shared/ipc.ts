@@ -23,6 +23,7 @@ import type { AppPrefs, AppPrefsPatch, AuthStatus, AutoResumeReport, PrefsSetRes
 import type { AppInfo, HistorySessionInfo, ProjectInfo, SessionEvent } from './events'
 import type { GitDiff, GitLog, GitStatus } from './git'
 import type { CavemanState, LimitsState } from './limits'
+import type { PluginsBrowseResult, PluginsListResult, PluginsMutationResult } from './plugins'
 import type { UsageQuery, UsageSummary } from './usage'
 import { PermissionModeSchema } from './permission-mode'
 import type { PermissionMode } from './permission-mode'
@@ -348,6 +349,32 @@ export const FileSearchSchema = z.object({
 })
 export type FileSearchArgs = z.input<typeof FileSearchSchema>
 
+// ---- plugins (P5 D) ----
+// Names and sources are passed to `claude plugin ...` as arguments, so none may start with "-".
+const PluginRef = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}(@[A-Za-z0-9][A-Za-z0-9._-]{0,99})?$/)
+const MarketplaceName = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/)
+const MarketplaceSource = z.string().regex(/^[^-\r\n][^\r\n]{0,499}$/)
+const PluginScopeSchema = z.enum(['user', 'project', 'local'])
+
+export const PluginActionSchema = z.discriminatedUnion('op', [
+  z.object({ op: z.literal('install'), plugin: PluginRef, scope: PluginScopeSchema }),
+  z.object({ op: z.literal('uninstall'), plugin: PluginRef, scope: PluginScopeSchema }),
+  z.object({ op: z.literal('enable'), plugin: PluginRef, scope: PluginScopeSchema }),
+  z.object({ op: z.literal('disable'), plugin: PluginRef, scope: PluginScopeSchema }),
+  z.object({ op: z.literal('update'), plugin: PluginRef }),
+  z.object({ op: z.literal('marketplaceAdd'), source: MarketplaceSource }),
+  z.object({ op: z.literal('marketplaceRemove'), name: MarketplaceName }),
+  z.object({ op: z.literal('marketplaceUpdate'), name: MarketplaceName.optional() })
+])
+export type PluginsMutateArgs = z.infer<typeof PluginActionSchema>
+export const PluginsMutateSchema = z.object({ cwd: z.string().min(1).max(4096).optional(), action: PluginActionSchema })
+export const PluginsListSchema = z.object({ cwd: z.string().min(1).max(4096).optional() })
+export const PluginsBrowseSchema = z.object({
+  query: z.string().max(200),
+  limit: z.number().int().min(1).max(100).default(30),
+  cwd: z.string().min(1).max(4096).optional()
+})
+
 export const GitStatusSchema = z.object({ cwd: GitCwd })
 export type GitStatusArgs = z.infer<typeof GitStatusSchema>
 export const GitDiffSchema = z.object({
@@ -427,6 +454,11 @@ export interface CcwrapApi {
   autoResume: {
     /** Fire-and-forget. */
     report(r: AutoResumeReport): void
+  }
+  plugins: {
+    list(a: { cwd?: string }): Promise<PluginsListResult>
+    browse(a: { query: string; limit?: number; cwd?: string }): Promise<PluginsBrowseResult>
+    mutate(a: { cwd?: string; action: PluginsMutateArgs }): Promise<PluginsMutationResult>
   }
   files: {
     /** Project files (relative to cwd, forward slashes) matching a fuzzy query, best first. */

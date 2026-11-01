@@ -19,6 +19,8 @@ const VIEW_COMMANDS: Record<string, AppView> = {
   config: 'settings',
   settings: 'settings',
   mcp: 'mcp',
+  plugin: 'plugins',
+  plugins: 'plugins',
   agents: 'agents',
   hooks: 'hooks',
   skills: 'skills'

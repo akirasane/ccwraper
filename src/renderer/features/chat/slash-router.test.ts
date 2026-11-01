@@ -12,6 +12,8 @@ describe('routeSlash', () => {
     expect(routeSlash('/mcp')).toEqual({ kind: 'view', view: 'mcp' })
     expect(routeSlash('/agents')).toEqual({ kind: 'view', view: 'agents' })
     expect(routeSlash('/hooks')).toEqual({ kind: 'view', view: 'hooks' })
+    expect(routeSlash('/plugins')).toEqual({ kind: 'view', view: 'plugins' })
+    expect(routeSlash('/plugin')).toEqual({ kind: 'view', view: 'plugins' })
   })
 
   it('is case-insensitive on the command name', () => {

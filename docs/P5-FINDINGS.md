@@ -45,3 +45,12 @@ Known gap: after `/clear` the CLI may start a new session id; `meta.sessionId` i
 - The SDK's `additionalDirectories` is fixed at launch. The only runtime path (`addDirectories`) accepts strict subfolders of cwd or of an existing root, so it cannot add an arbitrary folder. The app therefore applies folders to sessions started after they are added, and says so in a toast when a session is already live.
 - Live check: with a file in a folder outside cwd, `Read` raised a permission prompt without the option and no prompt with it.
 - Folders are stored per project in `localStorage` (`ccwrap.extraDirs.v1`), max 10, validated as existing directories in main before the session starts. `@file` search includes them (results are absolute paths).
+
+## D. Plugins and marketplaces
+
+- `claude plugin` has `list [--available] --json`, `marketplace list --json`, `install|uninstall|enable|disable -s <scope>`, `update`, and `marketplace add|remove|update`. The app wraps these through `PluginService` (execFile, never a shell); it never edits `installed_plugins.json` or `settings.json`.
+- `list --available --json` returns the whole catalog (about 3,900 plugins, 1.9 MB). Main caches it for 60 s (cleared after any mutation) and filters/ranks there, so the renderer only receives 30 rows.
+- Live check in a sandboxed `CLAUDE_CONFIG_DIR`: add marketplace, browse, install, disable, enable, update, uninstall, remove marketplace, and a failing install all behaved; error text is the CLI's own first line.
+- Gotcha: with cwd = the user's home, project-scope settings resolve to the same file as user settings, so `enabled` read back wrongly in the sandbox. With no project selected the CLI now runs from the OS temp dir.
+- Names and sources become CLI arguments, so the schema rejects anything starting with `-`, whitespace in ids, and newlines. Installing and adding a marketplace both show a trust warning (plugins can run hooks and MCP servers).
+- Mutations are serialized. Changes only reach new sessions.

@@ -68,6 +68,11 @@ const api: CcwrapApi = {
     onState: (cb) => subscribe<CavemanState>(IpcChannels.cavemanState, cb)
   },
   autoResume: { report: (r) => ipcRenderer.send(IpcChannels.autoResumeReport, r) },
+  plugins: {
+    list: (a) => ipcRenderer.invoke(IpcChannels.pluginsList, a),
+    browse: (a) => ipcRenderer.invoke(IpcChannels.pluginsBrowse, a),
+    mutate: (a) => ipcRenderer.invoke(IpcChannels.pluginsMutate, a)
+  },
   files: {
     search: (a) => ipcRenderer.invoke(IpcChannels.filesSearch, a)
   },

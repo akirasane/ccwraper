@@ -30,7 +30,7 @@ function writeLastCwd(cwd: string): void {
 }
 
 /** Main-column views. 'chat' is the default; the others are config pages (P2), item / hook editors (P3), data views and prefs (P4). */
-export const APP_VIEWS = ['chat', 'settings', 'mcp', 'memory', 'skills', 'agents', 'hooks', 'usage', 'git', 'preferences'] as const
+export const APP_VIEWS = ['chat', 'settings', 'mcp', 'plugins', 'memory', 'skills', 'agents', 'hooks', 'usage', 'git', 'preferences'] as const
 export type AppView = (typeof APP_VIEWS)[number]
 
 /** One open conversation tab (P4 D2). */

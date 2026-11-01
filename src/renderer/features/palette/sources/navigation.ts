@@ -1,4 +1,4 @@
-import { Bot, ChartColumn, FileText, GitBranch, MessagesSquare, Plug, Settings, SlidersHorizontal, Sparkles, Webhook } from 'lucide-react'
+import { Blocks, Bot, ChartColumn, FileText, GitBranch, MessagesSquare, Plug, Settings, SlidersHorizontal, Sparkles, Webhook } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PaletteCommand } from '@/lib/commands/types'
 import { APP_VIEWS, useWorkspaceStore } from '@/stores/workspace-store'
@@ -9,6 +9,7 @@ const VIEW_META: Record<AppView, { title: string; icon: LucideIcon; keywords: st
   chat: { title: 'Go to Chat', icon: MessagesSquare, keywords: ['conversation', 'session'] },
   settings: { title: 'Go to Settings', icon: Settings, keywords: ['config', 'settings.json'] },
   mcp: { title: 'Go to MCP servers', icon: Plug, keywords: ['mcp', 'servers', 'tools'] },
+  plugins: { title: 'Go to Plugins', icon: Blocks, keywords: ['plugins', 'marketplace', 'extensions', 'install'] },
   memory: { title: 'Go to Memory', icon: FileText, keywords: ['claude.md', 'instructions'] },
   skills: { title: 'Go to Skills and commands', icon: Sparkles, keywords: ['skills', 'slash', 'commands'] },
   agents: { title: 'Go to Agents', icon: Bot, keywords: ['subagents'] },
