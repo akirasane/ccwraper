@@ -14,6 +14,7 @@ import { CavemanService } from './services/caveman-service'
 import { GitService } from './services/git-service'
 import { FileSearchService } from './services/file-search'
 import { LimitsService } from './services/limits-service'
+import { UsageProbe } from './services/usage-probe'
 import { HotkeyService } from './services/hotkey-service'
 import { NotificationService } from './services/notification-service'
 import { PluginRegistry } from './services/plugin-registry'
@@ -76,6 +77,12 @@ const updates = new UpdateService({
 const limits = new LimitsService({
   file: limitsPath(userData),
   broadcast: (state) => getWindow()?.webContents.send(IpcChannels.limitsState, state),
+  log: (m) => console.warn('[ccwrap]', m)
+})
+// Polls plan usage every 30 s through one idle SDK session so the 5h / 7d bars move without any chat.
+const usageProbe = new UsageProbe({
+  ingest: (l) => limits.ingest(l),
+  enabled: () => prefs.get().showLimitsBar,
   log: (m) => console.warn('[ccwrap]', m)
 })
 const caveman = new CavemanService({
@@ -210,8 +217,13 @@ if (!app.requestSingleInstanceLock()) {
     })
     updates.start()
     caveman.start()
+    usageProbe.start()
+    app.on('browser-window-focus', () => usageProbe.refreshNow())
     hotkey.apply(prefs.get().hotkey)
-    prefs.onChange((p) => hotkey.apply(p.hotkey))
+    prefs.onChange((p) => {
+      hotkey.apply(p.hotkey)
+      usageProbe.refreshNow()
+    })
     createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -230,6 +242,7 @@ app.on('will-quit', () => {
   hotkey.dispose()
   updates.dispose()
   caveman.dispose()
+  usageProbe.dispose()
   autoResume.dispose()
   notifications.dispose()
 })
