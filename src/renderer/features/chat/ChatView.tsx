@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { useChatStore } from '@/stores/chat-store'
 import './chat.css'
+import { TodoPanel } from './activity/TodoPanel'
 import { AgentDock } from './activity/AgentDock'
 import { WorkingRow } from './activity/WorkingRow'
 import { AutoResumeBanner } from '@/features/autoresume/AutoResumeBanner'
@@ -68,6 +69,7 @@ export function ChatView({ target }: { target: ChatTarget }): React.JSX.Element 
     >
       {has && <HistoryNotice convId={convId} />}
       {has ? <MessageList convId={convId} cwd={target.cwd} /> : <div className="flex-1" />}
+      {has && <TodoPanel convId={convId} />}
       {has && <AgentDock convId={convId} />}
       {has && <WorkingRow convId={convId} />}
       {has && <AuthHint convId={convId} cwd={target.cwd} />}

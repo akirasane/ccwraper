@@ -15,6 +15,10 @@ export function argSummary(name: string, input: unknown): string {
     case 'Grep':
     case 'Glob':
       return s(i.pattern)
+    case 'TodoWrite':
+      return Array.isArray(i.todos) ? `${i.todos.length} ${i.todos.length === 1 ? 'task' : 'tasks'}` : ''
+    case 'TaskUpdate':
+      return [s(i.taskId) && `#${s(i.taskId)}`, s(i.status), s(i.subject)].filter(Boolean).join(' ')
     default: {
       const first = Object.values(i).find((v) => typeof v === 'string')
       return typeof first === 'string' ? first.split('\n')[0]! : ''

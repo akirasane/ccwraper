@@ -75,6 +75,9 @@ export interface AdapterSession {
   close(): void
 }
 
+/** Task-list tools: not exposed to headless sessions unless allow-listed (verified against CLI 2.1.312). */
+export const TASK_TOOLS = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet'] as const
+
 /** Plain string for text-only prompts; content blocks (images first, then text) when images are attached. */
 export function buildContent(text: string, images?: ImageAttachment[]): SDKUserMessage['message']['content'] {
   if (!images?.length) return text
@@ -668,6 +671,8 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
     includePartialMessages: true,
     ...(opts.onStderr ? { stderr: opts.onStderr } : {}),
     settingSources: opts.settingSources ?? ['user', 'project', 'local'],
+    // Headless sessions hide the task-list tools unless named here; the todo panel needs them. They only edit the list.
+    allowedTools: [...TASK_TOOLS],
     ...(opts.thinking ? { thinking: { type: 'adaptive' as const, display: 'summarized' as const } } : {}),
     permissionMode: (opts.permissionMode ?? 'default') as SdkPermissionMode,
     ...(opts.allowBypass ? { allowDangerouslySkipPermissions: true } : {}),
