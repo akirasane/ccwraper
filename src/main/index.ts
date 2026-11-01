@@ -12,6 +12,7 @@ import { AuthStatusService } from './services/auth-status'
 import { runClaude } from './services/claude-cli'
 import { CavemanService } from './services/caveman-service'
 import { GitService } from './services/git-service'
+import { FileSearchService } from './services/file-search'
 import { LimitsService } from './services/limits-service'
 import { HotkeyService } from './services/hotkey-service'
 import { NotificationService } from './services/notification-service'
@@ -60,6 +61,7 @@ const usage = new UsageService({
 })
 const ledger = new UsageLedger(usageLedgerPath(userData))
 const git = new GitService()
+const files = new FileSearchService()
 const auth = new AuthStatusService(runClaude)
 const hotkey = new HotkeyService({ getWindow })
 const updates = new UpdateService({
@@ -200,6 +202,7 @@ if (!app.requestSingleInstanceLock()) {
       hotkey,
       usage,
       git,
+      files,
       autoResume: { report: (r) => autoResume.report(r) },
       update: updates,
       limits,

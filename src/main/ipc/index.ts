@@ -7,6 +7,7 @@ import { combineDisposers } from './dispose'
 import type { Disposer } from './dispose'
 import type { PluginRegistry } from '../services/plugin-registry'
 import { registerGitIpc } from './git'
+import { registerFilesIpc } from './files'
 import { registerHistoryIpc } from './history'
 import { registerItemsIpc } from './items'
 import { registerMcpIpc } from './mcp'
@@ -37,6 +38,7 @@ export interface IpcDeps {
   hotkey: PrefsIpcDeps['hotkey']
   usage: Pick<UsageService, 'summary'>
   git: Pick<GitService, 'status' | 'diff' | 'log'>
+  files?: Parameters<typeof registerFilesIpc>[0]
   /** Auto-update service (optional so older callers keep working). */
   update?: UpdateIpcDeps
   /** Status bar sources (optional so older callers keep working). */
@@ -55,6 +57,7 @@ export function registerIpc(deps: IpcDeps): Disposer {
     registerPrefsIpc({ prefs: deps.prefs, hotkey: deps.hotkey, send: deps.send }),
     registerUsageIpc(deps.usage),
     registerGitIpc(deps.git),
+    deps.files ? registerFilesIpc(deps.files) : () => {},
     deps.autoResume ? registerAutoResumeIpc(deps.autoResume) : () => {},
     deps.update ? registerUpdateIpc(deps.update) : () => {},
     deps.limits ? registerLimitsIpc(deps.limits) : () => {},

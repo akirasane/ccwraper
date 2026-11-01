@@ -321,6 +321,13 @@ export function isSafeRepoPath(p: string): boolean {
   return !p.split(/[\\/]/).some((seg) => seg === '..')
 }
 
+export const FileSearchSchema = z.object({
+  cwd: z.string().min(1).max(4096),
+  query: z.string().max(200),
+  limit: z.number().int().min(1).max(50).default(20)
+})
+export type FileSearchArgs = z.input<typeof FileSearchSchema>
+
 export const GitStatusSchema = z.object({ cwd: GitCwd })
 export type GitStatusArgs = z.infer<typeof GitStatusSchema>
 export const GitDiffSchema = z.object({
@@ -398,6 +405,10 @@ export interface CcwrapApi {
   autoResume: {
     /** Fire-and-forget. */
     report(r: AutoResumeReport): void
+  }
+  files: {
+    /** Project files (relative to cwd, forward slashes) matching a fuzzy query, best first. */
+    search(a: FileSearchArgs): Promise<string[]>
   }
   git: {
     status(a: { cwd: string }): Promise<GitStatus>

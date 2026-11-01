@@ -232,3 +232,43 @@ describe('image attachments', () => {
     await waitFor(() => screen.getByTestId('composer-images'))
   })
 })
+
+describe('@file mention popup', () => {
+  beforeEach(() => {
+    ;(api as unknown as { files: unknown }).files = {
+      search: vi.fn().mockResolvedValue(['src/main/index.ts', 'src/renderer/App.tsx'])
+    }
+  })
+
+  it('opens on @, queries the cwd, and Enter inserts the path', async () => {
+    seedLive()
+    render(<Composer convId="c1" />)
+    await userEvent.type(box(), 'open @src')
+    await waitFor(() => expect(screen.getByTestId('mention-popup')).toBeTruthy())
+    const search = (api as unknown as { files: { search: ReturnType<typeof vi.fn> } }).files.search
+    expect(search).toHaveBeenLastCalledWith({ cwd: target.cwd, query: 'src', limit: 20 })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['index.tssrc/main/', 'App.tsxsrc/renderer/'])
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+    expect(box().value).toBe('open @src/renderer/App.tsx ')
+    expect(screen.queryByTestId('mention-popup')).toBeNull()
+    expect(api.session.send).not.toHaveBeenCalled()
+  })
+
+  it('Escape closes the popup without interrupting', async () => {
+    seedLive()
+    render(<Composer convId="c1" />)
+    await userEvent.type(box(), '@s')
+    await waitFor(() => screen.getByTestId('mention-popup'))
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByTestId('mention-popup')).toBeNull()
+    expect(box().value).toBe('@s')
+  })
+
+  it('does not open for emails', async () => {
+    seedLive()
+    render(<Composer convId="c1" />)
+    await userEvent.type(box(), 'mail me@host')
+    await new Promise((r) => setTimeout(r, 150))
+    expect(screen.queryByTestId('mention-popup')).toBeNull()
+  })
+})

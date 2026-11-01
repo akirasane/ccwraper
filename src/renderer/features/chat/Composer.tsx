@@ -10,6 +10,8 @@ import { SLASH_LISTBOX_ID, SlashPopup, slashOptionId } from './SlashPopup'
 import { FALLBACK_COMMANDS, filterCommands, slashQuery } from './slash-commands'
 import { ModeMenu } from './mode/ModeMenu'
 import { dataUrl, readImages } from './attachments'
+import { applyMention, mentionAt } from './mentions'
+import { MENTION_LISTBOX_ID, MentionPopup, mentionOptionId } from './MentionPopup'
 import { IMAGE_MEDIA_TYPES, type ImageAttachment } from '@shared/ipc'
 
 const NO_IMAGES: ImageAttachment[] = []
@@ -114,6 +116,50 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
   }
   const trackCaret = (el: HTMLTextAreaElement): void => setCaret(el.selectionStart ?? el.value.length)
 
+  // ---- @file mention popup ----
+  const cwd = useChatStore((s) => s.convs[convId]?.cwd)
+  const mention = disabled || query !== null ? null : mentionAt(text, Math.min(caret, text.length))
+  const [files, setFiles] = React.useState<{ key: string; list: string[] }>({ key: '', list: [] })
+  const [mentionIdx, setMentionIdx] = React.useState(0)
+  const [mentionDismissed, setMentionDismissed] = React.useState<string | null>(null)
+  const mentionKey = mention && cwd ? `${cwd}\0${mention.query}` : null
+  React.useEffect(() => {
+    if (!mentionKey || !mention || !cwd) return
+    let stale = false
+    const h = window.setTimeout(() => {
+      window.ccwrap.files
+        .search({ cwd, query: mention.query, limit: 20 })
+        .then((list) => {
+          if (!stale) setFiles({ key: mentionKey, list })
+        })
+        .catch(() => {
+          if (!stale) setFiles({ key: mentionKey, list: [] })
+        })
+    }, 80)
+    return () => {
+      stale = true
+      window.clearTimeout(h)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mentionKey])
+  const mentionItems = mentionKey && files.key === mentionKey ? files.list : []
+  const mentionOpen = mention !== null && mentionItems.length > 0 && mentionDismissed !== `${mention.start}:${mention.query}`
+  const mentionActive = Math.min(mentionIdx, Math.max(0, mentionItems.length - 1))
+  React.useEffect(() => setMentionIdx(0), [mentionKey])
+
+  const pickMention = (path: string): void => {
+    if (!mention) return
+    const r = applyMention(text, caret, mention, path)
+    setText(r.text)
+    setCaret(r.caret)
+    requestAnimationFrame(() => {
+      const el = ref.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(r.caret, r.caret)
+    })
+  }
+
   const canSend = !disabled && !running && (text.trim().length > 0 || images.length > 0)
   const send = (): void => {
     if (!canSend) return
@@ -139,6 +185,9 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
             onPick={pick}
             onHover={setActiveIdx}
           />
+        ) : null}
+        {mentionOpen ? (
+          <MentionPopup items={mentionItems} activeIndex={mentionActive} onPick={pickMention} onHover={setMentionIdx} />
         ) : null}
         <div
           className="ccw-composer min-h-[var(--composer-min-h)]"
@@ -188,8 +237,14 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
             style={{ boxShadow: 'none' }}
             placeholder={disabled ? (disabledReason ?? 'Unavailable') : 'Ask Claude to work on this project...'}
             aria-autocomplete="list"
-            aria-controls={popupOpen ? SLASH_LISTBOX_ID : undefined}
-            aria-activedescendant={popupOpen && matches[active] ? slashOptionId(matches[active]!.name) : undefined}
+            aria-controls={popupOpen ? SLASH_LISTBOX_ID : mentionOpen ? MENTION_LISTBOX_ID : undefined}
+            aria-activedescendant={
+              popupOpen && matches[active]
+                ? slashOptionId(matches[active]!.name)
+                : mentionOpen
+                  ? mentionOptionId(mentionActive)
+                  : undefined
+            }
             onChange={(e) => {
               setText(e.target.value)
               trackCaret(e.target)
@@ -203,6 +258,25 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
               void attach(files)
             }}
             onKeyDown={(e) => {
+              if (mentionOpen && !e.nativeEvent.isComposing) {
+                const n = mentionItems.length
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                  e.preventDefault()
+                  setMentionIdx((mentionActive + (e.key === 'ArrowDown' ? 1 : n - 1)) % n)
+                  return
+                }
+                if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+                  e.preventDefault()
+                  pickMention(mentionItems[mentionActive]!)
+                  return
+                }
+                if (e.key === 'Escape' && mention) {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setMentionDismissed(`${mention.start}:${mention.query}`)
+                  return
+                }
+              }
               if (popupOpen && !e.nativeEvent.isComposing) {
                 if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                   e.preventDefault()

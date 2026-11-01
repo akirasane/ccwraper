@@ -67,6 +67,9 @@ const api: CcwrapApi = {
     onState: (cb) => subscribe<CavemanState>(IpcChannels.cavemanState, cb)
   },
   autoResume: { report: (r) => ipcRenderer.send(IpcChannels.autoResumeReport, r) },
+  files: {
+    search: (a) => ipcRenderer.invoke(IpcChannels.filesSearch, a)
+  },
   git: {
     status: (a) => ipcRenderer.invoke(IpcChannels.gitStatus, a),
     diff: (a) => ipcRenderer.invoke(IpcChannels.gitDiff, a),

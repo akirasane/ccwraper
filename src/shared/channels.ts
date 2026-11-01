@@ -54,6 +54,7 @@ export const IpcChannels = {
   gitStatus: 'git:status',
   gitDiff: 'git:diff',
   gitLog: 'git:log',
+  filesSearch: 'files:search',
   // ---- P4 WP14 ----
   /** Fire-and-forget (ipcRenderer.send / ipcMain.on). */
   autoResumeReport: 'autoresume:report',
