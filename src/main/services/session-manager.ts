@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import type { ModelOption } from '../../shared/config'
 import type { SessionEvent, SessionStatus } from '../../shared/events'
-import type { ImageAttachment, PermissionReplyArgs, SessionStartArgs } from '../../shared/ipc'
+import type { ImageAttachment, PermissionReplyArgs, RewindResult, SessionStartArgs } from '../../shared/ipc'
 import type { PluginRegistry } from './plugin-registry'
 import { BYPASS_DISABLED, startSdkSession, type AdapterSession, type PermissionModeName } from './sdk-adapter'
 
@@ -63,6 +63,7 @@ export class SessionManager {
         cwd: args.cwd,
         prompt: args.prompt,
         ...(args.images?.length ? { images: args.images } : {}),
+        ...(args.messageId ? { messageId: args.messageId } : {}),
         // Summarized adaptive thinking: without it the CLI returns thinking blocks with empty text.
         thinking: true,
         ...(args.model ? { model: args.model } : {}),
@@ -137,8 +138,11 @@ export class SessionManager {
     return s
   }
 
-  send(localId: string, text: string, images?: ImageAttachment[]): void {
-    this.get(localId).adapter.send(text, images)
+  send(localId: string, text: string, images?: ImageAttachment[], messageId?: string): void {
+    this.get(localId).adapter.send(text, images, messageId)
+  }
+  rewind(localId: string, messageId: string, dryRun: boolean): Promise<RewindResult> {
+    return this.get(localId).adapter.rewindFiles(messageId, dryRun)
   }
   async interrupt(localId: string): Promise<void> {
     // Safe no-op for finished/unknown sessions.

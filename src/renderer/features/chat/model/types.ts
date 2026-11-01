@@ -10,7 +10,7 @@ export type AssistantPart =
   | { kind: 'thinking'; text: string; startedAt?: number; endedAt?: number }
 
 export type ChatItem =
-  | { kind: 'user'; id: string; text: string; images?: ImageAttachment[] }
+  | { kind: 'user'; id: string; text: string; images?: ImageAttachment[]; messageId?: string }
   | {
       kind: 'assistant'
       id: string

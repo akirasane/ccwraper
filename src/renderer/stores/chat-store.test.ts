@@ -20,6 +20,7 @@ beforeEach(() => {
     permissionReply: vi.fn(async () => {}),
     supportedModels: vi.fn(async () => []),
     stopTask: vi.fn(async () => {}),
+    rewind: vi.fn(async () => ({ canRewind: true })),
     onEvent: vi.fn((cb: (p: SessionEventPayload) => void) => {
       listener = cb
       return () => {
@@ -43,12 +44,13 @@ describe('chat-store', () => {
     const st = useChatStore.getState()
     st.createConv({ convId: 'c1', cwd: 'C:\\fixture\\proj', resumeSessionId: 'old' })
     await st.submit('c1', 'hello')
-    expect(session.start).toHaveBeenCalledWith({ cwd: 'C:\\fixture\\proj', prompt: 'hello', resumeId: 'old' })
+    expect(session.start).toHaveBeenCalledWith(expect.objectContaining({ cwd: 'C:\\fixture\\proj', prompt: 'hello', resumeId: 'old' }))
     expect(conv().localId).toBe('L1')
-    expect(conv().items[0]).toMatchObject({ kind: 'user', text: 'hello' })
+    expect(conv().items[0]).toMatchObject({ kind: 'user', text: 'hello', messageId: session.start.mock.calls[0]![0].messageId })
+    expect(session.start.mock.calls[0]![0].messageId).toMatch(/^[0-9a-f-]{36}$/)
     expect(conv().status).toBe('running')
     await useChatStore.getState().submit('c1', 'again')
-    expect(session.send).toHaveBeenCalledWith({ localId: 'L1', text: 'again' })
+    expect(session.send).toHaveBeenCalledWith(expect.objectContaining({ localId: 'L1', text: 'again' }))
   })
 
   it('events arriving before bind are buffered and replayed in order', async () => {

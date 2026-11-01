@@ -6,6 +6,7 @@ import type { ChatItem } from './model/types'
 import { SubagentCard } from './tools/SubagentCard'
 import { ToolCard } from './tools/ToolCard'
 import { UserMessage } from './UserMessage'
+import { RewindControl } from './rewind/RewindControl'
 
 function ToolItem({ convId, toolUseId, depth }: { convId: string; toolUseId: string; depth: number }): React.JSX.Element {
   const isAgent = useChatStore((s) => {
@@ -28,7 +29,9 @@ function ToolItem({ convId, toolUseId, depth }: { convId: string; toolUseId: str
 export function ItemView({ convId, item, depth = 0 }: { convId: string; item: ChatItem; depth?: number }): React.JSX.Element {
   switch (item.kind) {
     case 'user':
-      return <UserMessage text={item.text} {...(item.images ? { images: item.images } : {})} />
+      return <UserMessage text={item.text} {...(item.images ? { images: item.images } : {})}>
+          {item.messageId ? <RewindControl convId={convId} messageId={item.messageId} /> : null}
+        </UserMessage>
     case 'assistant':
       return <AssistantMessage item={item} />
     case 'tool':

@@ -355,10 +355,11 @@ export const useChatStore = create<ChatState>((set, get) => {
         await get().suspend(victim.convId)
       }
       set((s) => ({ lastActive: { ...s.lastActive, [convId]: Date.now() } }))
-      patch(convId, (x) => addUserItem(x, text, Date.now(), images))
+      const messageId = crypto.randomUUID()
+      patch(convId, (x) => addUserItem(x, text, Date.now(), images, messageId))
       try {
         if (c.localId) {
-          await window.ccwrap.session.send({ localId: c.localId, text, ...(images?.length ? { images } : {}) })
+          await window.ccwrap.session.send({ localId: c.localId, text, messageId, ...(images?.length ? { images } : {}) })
         } else {
           const mode = get().modes[convId]
           if (mode) startRequested.set(convId, mode)
@@ -366,6 +367,7 @@ export const useChatStore = create<ChatState>((set, get) => {
           const { localId } = await window.ccwrap.session.start({
             cwd: c.cwd,
             prompt: text,
+            messageId,
             ...(images?.length ? { images } : {}),
             ...(c.resumeSessionId ? { resumeId: c.resumeSessionId } : {}),
             ...(mode ? { permissionMode: mode } : {}),

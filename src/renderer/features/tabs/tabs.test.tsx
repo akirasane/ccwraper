@@ -163,10 +163,10 @@ describe('the 5-session cap', () => {
     expect(api.session.close).toHaveBeenCalledWith('Lx3')
     expect(chat().convs['c3']!.localId).toBeUndefined()
     expect(chat().convs['c3']!.resumeSessionId).toBe('sess3')
-    expect(api.session.start).toHaveBeenCalledWith({ cwd: CWD, prompt: 'go' })
+    expect(api.session.start).toHaveBeenCalledWith(expect.objectContaining({ cwd: CWD, prompt: 'go' }))
     // Resume on demand: the suspended conversation's next submit starts with resumeId.
     await chat().submit('c3', 'again')
-    expect(api.session.start).toHaveBeenLastCalledWith({ cwd: CWD, prompt: 'again', resumeId: 'sess3' })
+    expect(api.session.start).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: CWD, prompt: 'again', resumeId: 'sess3' }))
   })
 
   it('with 5 busy conversations the start fails with the D2 message', async () => {

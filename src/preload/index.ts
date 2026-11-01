@@ -26,7 +26,8 @@ const api: CcwrapApi = {
       return () => ipcRenderer.removeListener(IpcChannels.sessionEvent, h)
     },
     supportedModels: (id) => ipcRenderer.invoke(IpcChannels.sessionSupportedModels, id),
-    stopTask: (localId, taskId) => ipcRenderer.invoke(IpcChannels.sessionStopTask, { localId, taskId })
+    stopTask: (localId, taskId) => ipcRenderer.invoke(IpcChannels.sessionStopTask, { localId, taskId }),
+    rewind: (args) => ipcRenderer.invoke(IpcChannels.sessionRewind, args)
   },
   items: {
     list: (args) => ipcRenderer.invoke(IpcChannels.itemsList, args),

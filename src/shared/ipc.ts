@@ -46,12 +46,15 @@ export const ImageAttachmentSchema = z.object({
 })
 export type ImageAttachment = z.infer<typeof ImageAttachmentSchema>
 const ImagesSchema = z.array(ImageAttachmentSchema).max(MAX_IMAGES)
+/** Renderer-generated id stamped on the user message so files can be rewound to it later. */
+const MessageIdSchema = z.string().uuid()
 
 export const SessionStartSchema = z
   .object({
     cwd: z.string().min(1),
     prompt: z.string(),
     images: ImagesSchema.optional(),
+    messageId: MessageIdSchema.optional(),
     model: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
     resumeId: z.string().optional(),
@@ -61,7 +64,7 @@ export const SessionStartSchema = z
 export type SessionStartArgs = z.infer<typeof SessionStartSchema>
 
 export const SessionSendSchema = z
-  .object({ localId: z.string(), text: z.string(), images: ImagesSchema.optional() })
+  .object({ localId: z.string(), text: z.string(), images: ImagesSchema.optional(), messageId: MessageIdSchema.optional() })
   .refine((a) => a.text.length > 0 || (a.images?.length ?? 0) > 0, { message: 'text or image required' })
 export type SessionSendArgs = z.infer<typeof SessionSendSchema>
 
@@ -198,6 +201,18 @@ export const ItemsDeleteSchema = z.object({ ref: ItemRefSchema, baseHash: z.stri
 export interface ItemsDeleteArgs {
   ref: ConfigFileRef
   baseHash: string
+}
+
+export const SessionRewindSchema = z.object({ localId: z.string(), messageId: MessageIdSchema, dryRun: z.boolean() })
+export type SessionRewindArgs = z.infer<typeof SessionRewindSchema>
+/** Outcome of rewinding files to a user message (mirrors the SDK's RewindFilesResult). */
+export interface RewindResult {
+  canRewind: boolean
+  error?: string
+  filesChanged?: string[]
+  insertions?: number
+  deletions?: number
+  skippedLinks?: number
 }
 
 export const SessionStopTaskSchema = z.object({ localId: z.string(), taskId: z.string().min(1) })
@@ -359,6 +374,8 @@ export interface CcwrapApi {
     onEvent(cb: (p: SessionEventPayload) => void): () => void
     supportedModels(localId: string): Promise<ModelOption[]>
     stopTask(localId: string, taskId: string): Promise<void>
+    /** Restore tracked files to their state at a user message; `dryRun` only previews. */
+    rewind(args: SessionRewindArgs): Promise<RewindResult>
   }
   items: {
     list(args: ItemsListArgs): Promise<ConfigItemList>

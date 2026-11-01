@@ -115,7 +115,7 @@ describe('end to end in the stores', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3000)
     })
-    expect(api.session.send).toHaveBeenCalledWith({ localId: LID, text: 'Continue where you left off.' })
+    expect(api.session.send).toHaveBeenCalledWith(expect.objectContaining({ localId: LID, text: 'Continue where you left off.' }))
     expect(reports.some((r) => r.kind === 'resumed' && r.pending === 0)).toBe(true)
 
     // The CLI starts the turn: the limit state clears, the tab is "running", nothing is scheduled any more.
@@ -154,7 +154,7 @@ describe('end to end in the stores', () => {
       screen.getByRole('button', { name: 'Resume now' }).click()
       await vi.advanceTimersByTimeAsync(0)
     })
-    expect(api.session.send).toHaveBeenCalledWith({ localId: LID, text: 'Continue where you left off.' })
+    expect(api.session.send).toHaveBeenCalledWith(expect.objectContaining({ localId: LID, text: 'Continue where you left off.' }))
   })
 
   it('banner: Paused until + Cancel stops the automatic resume', async () => {
@@ -208,7 +208,7 @@ describe('end to end in the stores', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(1000 + RESET_MARGIN_MS)
     })
-    expect(api.session.send).toHaveBeenCalledWith({ localId: LID, text: 'Carry on with the plan.' })
+    expect(api.session.send).toHaveBeenCalledWith(expect.objectContaining({ localId: LID, text: 'Carry on with the plan.' }))
   })
 
   it('app restart before the reset: the pause is restored on its history tab and resumes the saved session', async () => {

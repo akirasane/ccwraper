@@ -14,6 +14,7 @@ function fakeAdapter(): AdapterSession {
     setPermissionMode: vi.fn(async () => {}),
     supportedModels: vi.fn(async () => []),
     stopTask: vi.fn(async () => {}),
+    rewindFiles: vi.fn(async () => ({ canRewind: true })),
     replyPermission: vi.fn(),
     done: new Promise<void>(() => {}),
     close: vi.fn()

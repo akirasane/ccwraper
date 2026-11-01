@@ -265,7 +265,7 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
       }
     case 'user_message': {
       const seq = conv.seq + 1
-      return { ...conv, seq, items: [...conv.items, { kind: 'user', id: `i${seq}`, text: e.text }] }
+      return { ...conv, seq, items: [...conv.items, { kind: 'user', id: `i${seq}`, text: e.text, ...(e.uuid ? { messageId: e.uuid } : {}) }] }
     }
     case 'text_delta':
       return appendDelta(conv, e.msgId, 'text', e.text, now)
@@ -478,12 +478,12 @@ export function reduce(conv: ConvState, e: SessionEvent, now = 0): ConvState {
 }
 
 /** Optimistic local user prompt (live sessions do not echo it). */
-export function addUserItem(conv: ConvState, text: string, now = 0, images?: ImageAttachment[]): ConvState {
+export function addUserItem(conv: ConvState, text: string, now = 0, images?: ImageAttachment[], messageId?: string): ConvState {
   const seq = conv.seq + 1
   // A new prompt starts a fresh live turn.
   const { turn: _t, ...base } = conv
   void _t
-  return { ...startTurn(base, now), seq, status: 'running', items: [...conv.items, { kind: 'user', id: `i${seq}`, text, ...(images?.length ? { images } : {}) }] }
+  return { ...startTurn(base, now), seq, status: 'running', items: [...conv.items, { kind: 'user', id: `i${seq}`, text, ...(images?.length ? { images } : {}), ...(messageId ? { messageId } : {}) }] }
 }
 
 /** Drop a pending permission after the user answered it. */

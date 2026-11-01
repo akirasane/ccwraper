@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_IMAGES, SessionSendSchema, SessionStartSchema } from './ipc'
+import { MAX_IMAGES, SessionRewindSchema, SessionSendSchema, SessionStartSchema } from './ipc'
 
 const img = { mediaType: 'image/png', data: 'AAAA' }
 
@@ -25,5 +25,19 @@ describe('image attachments in session schemas', () => {
   it('rejects an oversize payload', () => {
     const huge = { mediaType: 'image/png', data: 'A'.repeat(8 * 1024 * 1024) }
     expect(SessionSendSchema.safeParse({ localId: 'a', text: 'x', images: [huge] }).success).toBe(false)
+  })
+})
+
+describe('message ids and rewind schema', () => {
+  const id = '11111111-1111-4111-8111-111111111111'
+  it('accepts uuid message ids only', () => {
+    expect(SessionSendSchema.safeParse({ localId: 'a', text: 'x', messageId: id }).success).toBe(true)
+    expect(SessionSendSchema.safeParse({ localId: 'a', text: 'x', messageId: 'not-a-uuid' }).success).toBe(false)
+    expect(SessionStartSchema.safeParse({ cwd: 'C:/x', prompt: 'x', messageId: id }).success).toBe(true)
+  })
+  it('rewind needs a uuid and an explicit dryRun flag', () => {
+    expect(SessionRewindSchema.safeParse({ localId: 'a', messageId: id, dryRun: true }).success).toBe(true)
+    expect(SessionRewindSchema.safeParse({ localId: 'a', messageId: id }).success).toBe(false)
+    expect(SessionRewindSchema.safeParse({ localId: 'a', messageId: '../x', dryRun: false }).success).toBe(false)
   })
 })

@@ -36,6 +36,7 @@ export const IpcChannels = {
   fsChanged: 'fs:changed',
   // ---- P3 ----
   sessionStopTask: 'session:stopTask',
+  sessionRewind: 'session:rewind',
   itemsList: 'items:list',
   itemsCreate: 'items:create',
   itemsRename: 'items:rename',

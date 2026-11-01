@@ -11,7 +11,7 @@ import type {
   SDKMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
-import type { ImageAttachment } from '../../shared/ipc'
+import type { ImageAttachment, RewindResult } from '../../shared/ipc'
 import type { ModelOption } from '../../shared/config'
 import type { Block, SessionEvent, SlashCommandInfo, Usage } from '../../shared/events'
 import { limitTypeFromText, looksLikeUsageLimit, normalizeResetsAt, parseLimitReset } from '../../shared/rate-limit'
@@ -51,13 +51,17 @@ export interface AdapterOptions {
   prompt: string
   /** Images sent with the initial prompt. */
   images?: ImageAttachment[]
+  /** UUID stamped on the initial user message (rewind target). */
+  messageId?: string
   onEvent: (e: SessionEvent) => void
   /** Every SDK `rate_limit_info` (feeds the status-bar usage limits); independent of the rate_limited event. */
   onRateLimitInfo?: (info: unknown) => void
 }
 
 export interface AdapterSession {
-  send(text: string, images?: ImageAttachment[]): void
+  send(text: string, images?: ImageAttachment[], messageId?: string): void
+  /** Restore files edited via Edit/Write tools to their state at a user message. */
+  rewindFiles(messageId: string, dryRun: boolean): Promise<RewindResult>
   interrupt(): Promise<void>
   setModel(model: string): Promise<void>
   setPermissionMode(mode: PermissionModeName): Promise<void>
@@ -94,10 +98,11 @@ class InputQueue implements AsyncIterable<SDKUserMessage> {
   private items: SDKUserMessage[] = []
   private waiter: ((r: IteratorResult<SDKUserMessage>) => void) | null = null
   private closed = false
-  push(text: string, images?: ImageAttachment[]): void {
+  push(text: string, images?: ImageAttachment[], messageId?: string): void {
     const msg: SDKUserMessage = {
       type: 'user',
       message: { role: 'user', content: buildContent(text, images) },
+      ...(messageId ? { uuid: messageId as SDKUserMessage['uuid'] } : {}),
       parent_tool_use_id: null
     }
     if (this.waiter) {
@@ -673,6 +678,8 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
     settingSources: opts.settingSources ?? ['user', 'project', 'local'],
     // Headless sessions hide the task-list tools unless named here; the todo panel needs them. They only edit the list.
     allowedTools: [...TASK_TOOLS],
+    // Backs up files before Edit/Write so the UI can rewind them. Bash side effects are not tracked.
+    enableFileCheckpointing: true,
     ...(opts.thinking ? { thinking: { type: 'adaptive' as const, display: 'summarized' as const } } : {}),
     permissionMode: (opts.permissionMode ?? 'default') as SdkPermissionMode,
     ...(opts.allowBypass ? { allowDangerouslySkipPermissions: true } : {}),
@@ -701,7 +708,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
       })
   }
 
-  input.push(opts.prompt, opts.images)
+  input.push(opts.prompt, opts.images, opts.messageId)
   opts.onEvent({ t: 'status', state: 'running' })
   const q: Query = queryFn({ prompt: input, options })
   const acc = new TurnUsageAccumulator({ emit: (e) => opts.onEvent(e) })
@@ -759,11 +766,21 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
   })()
 
   return {
-    send(text, images) {
+    send(text, images, messageId) {
       running = true
       acc.reset()
       opts.onEvent({ t: 'status', state: 'running' })
-      input.push(text, images)
+      input.push(text, images, messageId)
+    },
+    async rewindFiles(messageId, dryRun) {
+      if (!dryRun && running) return { canRewind: false, error: 'Wait for the current turn to finish (or stop it) before rewinding.' }
+      if (typeof q.rewindFiles !== 'function') return { canRewind: false, error: 'This Claude Code version cannot rewind files.' }
+      try {
+        const r = await q.rewindFiles(messageId, { dryRun })
+        return r
+      } catch (err) {
+        return { canRewind: false, error: err instanceof Error ? err.message : String(err) }
+      }
     },
     async interrupt() {
       if (!running && pending.size === 0) return

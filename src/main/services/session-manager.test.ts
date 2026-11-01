@@ -15,6 +15,7 @@ function fakeAdapter(): AdapterSession {
     setPermissionMode: vi.fn(async () => {}),
     supportedModels: vi.fn(async () => [{ value: 'sonnet', displayName: 'Sonnet' }]),
     stopTask: vi.fn(async () => {}),
+    rewindFiles: vi.fn(async () => ({ canRewind: true, filesChanged: ['a.ts'] })),
     replyPermission: vi.fn(),
     done: new Promise<void>(() => {}),
     close: vi.fn()

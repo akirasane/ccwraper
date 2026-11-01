@@ -146,7 +146,7 @@ describe('slash popup', () => {
     seedLive(COMMANDS)
     render(<Composer convId="c1" />)
     await userEvent.type(box(), '/compact{Enter}')
-    await waitFor(() => expect(api.session.send).toHaveBeenCalledWith({ localId: 'L1', text: '/compact' }))
+    await waitFor(() => expect(api.session.send).toHaveBeenCalledWith(expect.objectContaining({ localId: 'L1', text: '/compact' })))
     const items = useChatStore.getState().convs.c1!.items
     expect(items.some((i) => i.kind === 'user' && i.text === '/compact')).toBe(true)
   })
@@ -155,14 +155,14 @@ describe('slash popup', () => {
     seedLive(COMMANDS)
     render(<Composer convId="c1" />)
     await userEvent.type(box(), '/comp{Tab}{Enter}')
-    await waitFor(() => expect(api.session.send).toHaveBeenCalledWith({ localId: 'L1', text: '/compact' }))
+    await waitFor(() => expect(api.session.send).toHaveBeenCalledWith(expect.objectContaining({ localId: 'L1', text: '/compact' })))
   })
 
   it('Enter still sends normal text; no popup flicker', async () => {
     seedLive(COMMANDS)
     render(<Composer convId="c1" />)
     await userEvent.type(box(), 'hello{Enter}')
-    await waitFor(() => expect(api.session.send).toHaveBeenCalledWith({ localId: 'L1', text: 'hello' }))
+    await waitFor(() => expect(api.session.send).toHaveBeenCalledWith(expect.objectContaining({ localId: 'L1', text: 'hello' })))
   })
 
   it('before the session has commands: static fallback with a note', async () => {
