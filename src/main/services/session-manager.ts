@@ -51,6 +51,8 @@ export class SessionManager {
     if (this.sessions.size >= MAX_SESSIONS) throw new Error(`Session cap reached (${MAX_SESSIONS})`)
     // Checked here: the SDK's own spawn error for a bad cwd is misleading ("failed to launch ... libc").
     await assertDirectory(args.cwd)
+    const extraDirs = args.additionalDirectories ?? []
+    for (const d of extraDirs) await assertDirectory(d)
     if (this.sessions.size >= MAX_SESSIONS) throw new Error(`Session cap reached (${MAX_SESSIONS})`)
     const allowBypass = this.deps.allowBypass?.() === true
     if (args.permissionMode === 'bypassPermissions' && !allowBypass) throw new Error(BYPASS_DISABLED)
@@ -64,6 +66,7 @@ export class SessionManager {
         prompt: args.prompt,
         ...(args.images?.length ? { images: args.images } : {}),
         ...(args.messageId ? { messageId: args.messageId } : {}),
+        ...(extraDirs.length ? { additionalDirectories: extraDirs } : {}),
         // Summarized adaptive thinking: without it the CLI returns thinking blocks with empty text.
         thinking: true,
         ...(args.model ? { model: args.model } : {}),

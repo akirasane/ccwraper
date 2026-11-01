@@ -79,3 +79,21 @@ describe('rankFiles noise', () => {
     expect(r.indexOf('src/components/ui/spinner.tsx')).toBeGreaterThan(1)
   })
 })
+
+describe('FileSearchService extra dirs', () => {
+  it('returns project files relative and extra-folder files absolute', async () => {
+    const proj = mkdtempSync(join(tmpdir(), 'ccwrap-p-'))
+    const extra = mkdtempSync(join(tmpdir(), 'ccwrap-x-'))
+    try {
+      const s = new FileSearchService(async (d) => (d.includes('ccwrap-x-') ? ['lib/shared.ts'] : ['src/app.ts']))
+      const r = await s.search({ cwd: proj, dirs: [extra], query: '', limit: 10 })
+      const base = extra.split(String.fromCharCode(92)).join('/')
+      expect(r).toContain('src/app.ts')
+      expect(r).toContain(`${base}/lib/shared.ts`)
+      expect(await s.search({ cwd: proj, dirs: [join(extra, 'missing')], query: '', limit: 10 })).toEqual(['src/app.ts'])
+    } finally {
+      rmSync(proj, { recursive: true, force: true })
+      rmSync(extra, { recursive: true, force: true })
+    }
+  })
+})

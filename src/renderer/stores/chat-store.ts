@@ -1,3 +1,4 @@
+import { useExtraDirs } from './extra-dirs-store'
 import type { ImageAttachment } from '@shared/ipc'
 import { create } from 'zustand'
 import type { SessionEvent } from '@shared/events'
@@ -367,10 +368,12 @@ export const useChatStore = create<ChatState>((set, get) => {
           const mode = get().modes[convId]
           if (mode) startRequested.set(convId, mode)
           const model = get().draftModels[convId]
+          const extraDirs = useExtraDirs.getState().dirsFor(c.cwd)
           const { localId } = await window.ccwrap.session.start({
             cwd: c.cwd,
             prompt: text,
             messageId,
+            ...(extraDirs.length ? { additionalDirectories: extraDirs } : {}),
             ...(images?.length ? { images } : {}),
             ...(c.resumeSessionId ? { resumeId: c.resumeSessionId } : {}),
             ...(mode ? { permissionMode: mode } : {}),

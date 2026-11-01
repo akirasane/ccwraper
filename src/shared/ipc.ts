@@ -34,6 +34,7 @@ export const IMAGE_MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image
 /** Per-image cap on the raw bytes (API limit is 5 MB per image). */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 export const MAX_IMAGES = 5
+export const MAX_EXTRA_DIRS = 10
 
 export const ImageAttachmentSchema = z.object({
   mediaType: z.enum(IMAGE_MEDIA_TYPES),
@@ -55,6 +56,8 @@ export const SessionStartSchema = z
     prompt: z.string(),
     images: ImagesSchema.optional(),
     messageId: MessageIdSchema.optional(),
+    /** Extra folders Claude may read and edit (`--add-dir`). Fixed for the life of the session. */
+    additionalDirectories: z.array(z.string().min(1).max(4096)).max(MAX_EXTRA_DIRS).optional(),
     model: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
     resumeId: z.string().optional(),
@@ -338,6 +341,8 @@ export function isSafeRepoPath(p: string): boolean {
 
 export const FileSearchSchema = z.object({
   cwd: z.string().min(1).max(4096),
+  /** Extra session folders searched too; their results are absolute paths. */
+  dirs: z.array(z.string().min(1).max(4096)).max(MAX_EXTRA_DIRS).optional(),
   query: z.string().max(200),
   limit: z.number().int().min(1).max(50).default(20)
 })

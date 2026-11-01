@@ -153,3 +153,21 @@ describe('SessionManager', () => {
     await expect(m.interrupt('nope')).resolves.toBeUndefined()
   })
 })
+
+describe('SessionManager extra directories', () => {
+  it('forwards additionalDirectories and rejects a missing folder before starting', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ccwrap-'))
+    const extra = mkdtempSync(join(tmpdir(), 'ccwrap-extra-'))
+    try {
+      const startSession = vi.fn(async () => fakeAdapter())
+      const m = new SessionManager(() => {}, { startSession })
+      await m.start({ cwd: dir, prompt: 'hi', additionalDirectories: [extra] })
+      expect(startSession).toHaveBeenCalledWith(expect.objectContaining({ additionalDirectories: [extra] }))
+      await expect(m.start({ cwd: dir, prompt: 'hi', additionalDirectories: [join(extra, 'nope')] })).rejects.toThrow(/not found/)
+      expect(startSession).toHaveBeenCalledTimes(1)
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+      rmSync(extra, { recursive: true, force: true })
+    }
+  })
+})

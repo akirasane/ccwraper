@@ -39,3 +39,9 @@ Date: 2026-11-01. Live probes against the bundled CLI 2.1.312 through `startSdkS
 A project or user command that reuses one of these names is never intercepted (`routeSlash` takes the session's non-builtin command names).
 
 Known gap: after `/clear` the CLI may start a new session id; `meta.sessionId` is not refreshed until the next `init`. A suspend/resume before then would restore the old transcript.
+
+## E. Extra directories
+
+- The SDK's `additionalDirectories` is fixed at launch. The only runtime path (`addDirectories`) accepts strict subfolders of cwd or of an existing root, so it cannot add an arbitrary folder. The app therefore applies folders to sessions started after they are added, and says so in a toast when a session is already live.
+- Live check: with a file in a folder outside cwd, `Read` raised a permission prompt without the option and no prompt with it.
+- Folders are stored per project in `localStorage` (`ccwrap.extraDirs.v1`), max 10, validated as existing directories in main before the session starts. `@file` search includes them (results are absolute paths).

@@ -88,16 +88,32 @@ export class FileSearchService {
     private now: () => number = Date.now
   ) {}
 
-  async search(args: { cwd: string; query: string; limit: number }): Promise<string[]> {
-    const st = await fsp.stat(args.cwd).catch(() => null)
-    if (!st?.isDirectory()) return []
-    const key = path.resolve(args.cwd)
+  private async filesFor(dir: string): Promise<string[]> {
+    const key = path.resolve(dir)
     let hit = this.cache.get(key)
     if (!hit || this.now() - hit.at > CACHE_TTL_MS) {
       hit = { at: this.now(), files: this.list(key).catch(() => []) }
       this.cache.set(key, hit)
-      if (this.cache.size > 8) this.cache.delete(this.cache.keys().next().value as string)
+      if (this.cache.size > 16) this.cache.delete(this.cache.keys().next().value as string)
     }
-    return rankFiles(await hit.files, args.query, args.limit)
+    return hit.files
+  }
+
+  /**
+   * Project files are returned relative to `cwd`; files from extra session folders (`dirs`) are
+   * absolute (forward slashes), since Claude resolves a mention against cwd.
+   */
+  async search(args: { cwd: string; dirs?: string[]; query: string; limit: number }): Promise<string[]> {
+    const st = await fsp.stat(args.cwd).catch(() => null)
+    if (!st?.isDirectory()) return []
+    const all = await this.filesFor(args.cwd)
+    const extra: string[] = []
+    for (const d of args.dirs ?? []) {
+      const dst = await fsp.stat(d).catch(() => null)
+      if (!dst?.isDirectory()) continue
+      const base = path.resolve(d).replaceAll('\\', '/').replace(/\/+$/, '')
+      for (const f of await this.filesFor(d)) extra.push(`${base}/${f}`)
+    }
+    return rankFiles(extra.length ? [...all, ...extra] : all, args.query, args.limit)
   }
 }

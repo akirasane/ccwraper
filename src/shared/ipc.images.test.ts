@@ -41,3 +41,11 @@ describe('message ids and rewind schema', () => {
     expect(SessionRewindSchema.safeParse({ localId: 'a', messageId: '../x', dryRun: false }).success).toBe(false)
   })
 })
+
+describe('additionalDirectories', () => {
+  it('accepts a bounded list of non-empty paths', () => {
+    expect(SessionStartSchema.safeParse({ cwd: 'C:/x', prompt: 'x', additionalDirectories: ['D:/a'] }).success).toBe(true)
+    expect(SessionStartSchema.safeParse({ cwd: 'C:/x', prompt: 'x', additionalDirectories: [''] }).success).toBe(false)
+    expect(SessionStartSchema.safeParse({ cwd: 'C:/x', prompt: 'x', additionalDirectories: Array(11).fill('D:/a') }).success).toBe(false)
+  })
+})

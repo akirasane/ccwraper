@@ -19,3 +19,26 @@ describe('SDK options', () => {
     s.close()
   })
 })
+
+describe('additionalDirectories option', () => {
+  const make = (): { impl: QueryImpl; opts: () => Record<string, unknown> } => {
+    let captured: Record<string, unknown> = {}
+    const impl = ((arg: { options: Record<string, unknown> }) => {
+      captured = arg.options
+      return {
+        [Symbol.asyncIterator]: () => ({ next: async () => ({ value: undefined, done: true as const }) }),
+        interrupt: async () => {},
+        close: () => {}
+      } as unknown as Query
+    }) as unknown as QueryImpl
+    return { impl, opts: () => captured }
+  }
+  it('passes extra folders through and omits the option when empty', async () => {
+    const a = make()
+    await startSdkSession({ cwd: 'C:/x', prompt: 'hi', additionalDirectories: ['D:/lib'], queryImpl: a.impl, onEvent: () => {} })
+    expect(a.opts()['additionalDirectories']).toEqual(['D:/lib'])
+    const b = make()
+    await startSdkSession({ cwd: 'C:/x', prompt: 'hi', additionalDirectories: [], queryImpl: b.impl, onEvent: () => {} })
+    expect(b.opts()).not.toHaveProperty('additionalDirectories')
+  })
+})

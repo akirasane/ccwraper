@@ -12,6 +12,8 @@ import { ModeMenu } from './mode/ModeMenu'
 import { dataUrl, readImages } from './attachments'
 import { applyMention, mentionAt } from './mentions'
 import { routeSlash } from './slash-router'
+import { AddDirButton, ExtraDirsChips } from './ExtraDirsBar'
+import { selectExtraDirs, useExtraDirs } from '@/stores/extra-dirs-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { usePaletteStore } from '../palette/palette-store'
 import { MENTION_LISTBOX_ID, MentionPopup, mentionOptionId } from './MentionPopup'
@@ -121,17 +123,18 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
 
   // ---- @file mention popup ----
   const cwd = useChatStore((s) => s.convs[convId]?.cwd)
+  const extraDirs = useExtraDirs(selectExtraDirs(cwd))
   const mention = disabled || query !== null ? null : mentionAt(text, Math.min(caret, text.length))
   const [files, setFiles] = React.useState<{ key: string; list: string[] }>({ key: '', list: [] })
   const [mentionIdx, setMentionIdx] = React.useState(0)
   const [mentionDismissed, setMentionDismissed] = React.useState<string | null>(null)
-  const mentionKey = mention && cwd ? `${cwd}\0${mention.query}` : null
+  const mentionKey = mention && cwd ? `${cwd}\0${extraDirs.join('|')}\0${mention.query}` : null
   React.useEffect(() => {
     if (!mentionKey || !mention || !cwd) return
     let stale = false
     const h = window.setTimeout(() => {
       window.ccwrap.files
-        .search({ cwd, query: mention.query, limit: 20 })
+        .search({ cwd, ...(extraDirs.length ? { dirs: extraDirs } : {}), query: mention.query, limit: 20 })
         .then((list) => {
           if (!stale) setFiles({ key: mentionKey, list })
         })
@@ -240,6 +243,7 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
             void attach(Array.from(e.dataTransfer.files))
           }}
         >
+          <ExtraDirsChips convId={convId} />
           {images.length > 0 ? (
             <ul className="flex flex-wrap gap-2 px-3 pt-3" data-testid="composer-images" aria-label="Attached images">
               {images.map((img, i) => (
@@ -347,6 +351,7 @@ export function Composer({ convId, disabled = false, disabledReason }: ComposerP
           <div className="flex items-center gap-2 px-2.5 pb-2.5 pt-1">
             <ModeMenu convId={convId} disabled={disabled} />
             <ModelMenu convId={convId} disabled={disabled} />
+            <AddDirButton convId={convId} {...(disabled ? { disabled } : {})} />
             <input
               ref={fileInput}
               type="file"
