@@ -102,3 +102,16 @@ Version: ship as 0.9.0 via the existing `chore(release)` flow once A-C are in; D
 - `rewindFiles` does not undo Bash side effects: UI wording must not over-promise.
 - Plugin CLI output is unstructured: parse defensively, show raw output on failure.
 - Live checks cost money and run real tools: use sandbox profiles, tiny prompts, never a profile with saved hooks.
+
+## Status (2026-11-01)
+
+All six sections shipped; details and live-check results are in `docs/P5-FINDINGS.md`.
+
+- A images + @file: done (known gap: images in resumed history are not shown)
+- B task list panel: done (needed `allowedTools` for the Task tools)
+- C rewind: files only; conversation fork-rewind deferred
+- D plugins: done
+- E extra directories: done (applies to new sessions only)
+- F slash commands: done
+
+Not yet released: version is still 0.8.0 on `main`.

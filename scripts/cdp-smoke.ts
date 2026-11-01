@@ -54,6 +54,7 @@ async function main(): Promise<void> {
     for (const [label, testId, file] of [
       ['Settings', 'settings-page', 'smoke-settings.png'],
       ['MCP', 'mcp-page', 'smoke-mcp.png'],
+      ['Plugins', 'plugins-page', 'smoke-plugins.png'],
       ['Memory', 'memory-page', 'smoke-memory.png'],
       ['Skills', 'skills-page', 'smoke-skills.png'],
       ['Agents', 'agents-page', 'smoke-agents.png'],
