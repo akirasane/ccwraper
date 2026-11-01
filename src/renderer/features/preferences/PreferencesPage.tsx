@@ -426,6 +426,20 @@ export function PreferencesPage(): React.JSX.Element {
                 />
               </Row>
             </Section>
+            <Section id="chrome" title="Browser testing">
+              <Row
+                label="Claude in Chrome"
+                hint="Starts new sessions with --chrome so Claude can drive your own Chrome (needs the Claude in Chrome extension, logged in). Applies to new sessions only. For an isolated browser, add Playwright from the MCP page instead."
+                htmlFor="claude-in-chrome"
+              >
+                <Toggle
+                  id="claude-in-chrome"
+                  checked={prefs.claudeInChrome}
+                  data-testid="claude-in-chrome"
+                  onCheckedChange={(v) => void set({ claudeInChrome: v })}
+                />
+              </Row>
+            </Section>
             <Section id="quit" title="Quit confirmation">
               <Row
                 label="Confirm before quitting while work is running"

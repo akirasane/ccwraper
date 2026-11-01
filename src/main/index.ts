@@ -89,7 +89,7 @@ const manager: SessionManager = new SessionManager(
     notifications.onSessionEvent(localId, event)
     ledger.onSessionEvent(localId, event, manager.info(localId))
   },
-  { registry: pluginRegistry, allowBypass: () => prefs.get().allowBypassMode, onRateLimitInfo: (info) => limits.ingest(info) }
+  { registry: pluginRegistry, allowBypass: () => prefs.get().allowBypassMode, chrome: () => prefs.get().claudeInChrome, onRateLimitInfo: (info) => limits.ingest(info) }
 )
 const notifications = new NotificationService({ getWindow, prefs, manager })
 const autoResume = new AutoResumeMain({ powerSave: powerSaveBlocker, announce: (r) => notifications.announce(r) })

@@ -30,6 +30,8 @@ export interface AdapterOptions {
   permissionMode?: PermissionModeName
   /** Preference gate: only then is allowDangerouslySkipPermissions passed (needed for Bypass at start or via setPermissionMode). */
   allowBypass?: boolean
+  /** Pass `--chrome` to the CLI (Claude in Chrome). */
+  chrome?: boolean
   resumeId?: string
   fork?: boolean
   /** Override binary path; otherwise resolved via resolveClaudeExecutable(). */
@@ -657,6 +659,7 @@ export async function startSdkSession(opts: AdapterOptions): Promise<AdapterSess
     ...(opts.allowBypass ? { allowDangerouslySkipPermissions: true } : {}),
     ...(opts.model ? { model: opts.model } : {}),
     ...(opts.resumeId ? { resume: opts.resumeId, forkSession: opts.fork === true } : {}),
+    ...(opts.chrome ? { extraArgs: { chrome: null } } : {}),
     ...(claudePath ? { pathToClaudeCodeExecutable: claudePath } : {}),
     canUseTool: (toolName, toolInput, { signal, title, suggestions }) =>
       new Promise<PermissionResult>((resolve) => {

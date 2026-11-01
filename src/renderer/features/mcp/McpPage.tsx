@@ -18,7 +18,7 @@ import { configKeys } from '@/lib/config-queries'
 import { cwdKey } from '@/stores/workspace-store'
 import { useChatStore } from '@/stores/chat-store'
 import { McpServerDialog, type McpSubmit } from './McpServerDialog'
-import { MASK, patchApproval, SCOPE_LABEL, SCOPE_ORDER, secretKeys, summarize } from './mcp-model'
+import { BROWSER_PRESETS, MASK, type McpPreset, patchApproval, SCOPE_LABEL, SCOPE_ORDER, secretKeys, summarize } from './mcp-model'
 
 const APPROVED_NOTE =
   'Approved in .claude/settings.local.json. `claude mcp list` may still print Pending approval; sessions use this setting.'
@@ -59,7 +59,7 @@ export function McpPage({ cwd }: { cwd?: string }): React.JSX.Element {
   const qc = useQueryClient()
   const live = useLiveStatus(cwd)
   const [tests, setTests] = useState<Record<string, TestState>>({})
-  const [dialog, setDialog] = useState<{ entry?: McpServerEntry; n: number } | undefined>()
+  const [dialog, setDialog] = useState<{ entry?: McpServerEntry; preset?: McpPreset; n: number } | undefined>()
   const [removing, setRemoving] = useState<McpServerEntry | undefined>()
   const [removeError, setRemoveError] = useState<{ message: string; output?: string } | undefined>()
 
@@ -155,6 +155,26 @@ export function McpPage({ cwd }: { cwd?: string }): React.JSX.Element {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+        <div className="mb-5" role="group" aria-label="Browser testing presets">
+          <h3 className="mb-1.5 text-sm font-medium uppercase tracking-wide text-fg-3">Browser testing</h3>
+          <ul className="flex flex-col gap-1.5">
+            {BROWSER_PRESETS.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 rounded-md border border-border bg-bg-1 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <span className="font-mono text-base text-fg">{p.label}</span>
+                  <p className="text-sm text-fg-3">{p.description}</p>
+                </div>
+                <Button
+                  variant="secondary"
+                  disabled={servers.some((s) => s.name === p.name)}
+                  onClick={() => setDialog({ preset: p, n: Date.now() })}
+                >
+                  {servers.some((s) => s.name === p.name) ? 'Added' : 'Add'}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
         {list.isPending && <p className="text-base text-fg-3">Loading servers...</p>}
         {(list.error || list.data?.error) && (
           <div role="alert" className="mb-3 rounded-sm border border-danger-border bg-danger-bg p-2 text-sm text-danger">
@@ -209,6 +229,7 @@ export function McpPage({ cwd }: { cwd?: string }): React.JSX.Element {
           key={dialog.n}
           open
           entry={dialog.entry}
+          {...(dialog.preset ? { preset: dialog.preset } : {})}
           hasProject={Boolean(cwd)}
           onOpenChange={(o) => !o && setDialog(undefined)}
           onSubmit={submit}

@@ -251,7 +251,8 @@ export const AppPrefsPatchSchema = z
     allowBypassMode: Flag,
     autoUpdate: Flag,
     showLimitsBar: Flag,
-    showCavemanBadge: Flag
+    showCavemanBadge: Flag,
+    claudeInChrome: Flag
   })
   .partial()
   .strict()

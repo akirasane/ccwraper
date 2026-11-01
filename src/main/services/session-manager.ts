@@ -15,6 +15,8 @@ export interface SessionManagerDeps {
   registry?: PluginRegistry
   /** Reads the allowBypassMode preference at call time. Defaults to off. */
   allowBypass?: () => boolean
+  /** Reads the claudeInChrome preference at call time. Defaults to off. */
+  chrome?: () => boolean
   /** Receives every SDK rate_limit_info from any session (usage-limit bars). */
   onRateLimitInfo?: (info: unknown) => void
 }
@@ -65,6 +67,7 @@ export class SessionManager {
         ...(args.model ? { model: args.model } : {}),
         ...(args.permissionMode ? { permissionMode: args.permissionMode } : {}),
         ...(allowBypass ? { allowBypass: true } : {}),
+        ...(this.deps.chrome?.() === true ? { chrome: true } : {}),
         ...(args.resumeId ? { resumeId: args.resumeId } : {}),
         ...(args.fork ? { fork: args.fork } : {}),
         ...(this.deps.onRateLimitInfo ? { onRateLimitInfo: this.deps.onRateLimitInfo } : {}),

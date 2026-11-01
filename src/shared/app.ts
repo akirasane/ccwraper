@@ -32,6 +32,8 @@ export interface AppPrefs {
   showLimitsBar: boolean
   /** Status bar: the caveman plugin's token-savings badge. */
   showCavemanBadge: boolean
+  /** Start sessions with `--chrome` (Claude in Chrome). Needs the Chrome extension; applies to new sessions. */
+  claudeInChrome: boolean
 }
 
 export const DEFAULT_PREFS: AppPrefs = {
@@ -50,7 +52,8 @@ export const DEFAULT_PREFS: AppPrefs = {
   allowBypassMode: false,
   autoUpdate: true,
   showLimitsBar: true,
-  showCavemanBadge: true
+  showCavemanBadge: true,
+  claudeInChrome: false
 }
 
 export type AppPrefsPatch = {
@@ -62,6 +65,7 @@ export type AppPrefsPatch = {
   autoUpdate?: boolean
   showLimitsBar?: boolean
   showCavemanBadge?: boolean
+  claudeInChrome?: boolean
 }
 
 /** Renderer -> main (fire-and-forget): drives the pause/resume native notifications and the keep-awake lock. */

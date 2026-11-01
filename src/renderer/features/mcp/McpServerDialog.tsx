@@ -23,6 +23,8 @@ import {
   validateConfig,
   type FormTransport,
   type KvRow,
+  presetForm,
+  type McpPreset,
   type ServerForm
 } from './mcp-model'
 
@@ -38,6 +40,8 @@ interface Props {
   onOpenChange: (open: boolean) => void
   /** Existing entry when editing; undefined when adding. */
   entry?: McpServerEntry
+  /** Prefills the add form (ignored when editing). */
+  preset?: McpPreset
   hasProject: boolean
   onSubmit: (v: McpSubmit) => Promise<{ ok: true } | { ok: false; message: string; output?: string }>
 }
@@ -104,9 +108,13 @@ function KvEditor(props: {
   )
 }
 
-export function McpServerDialog({ open, onOpenChange, entry, hasProject, onSubmit }: Props): React.JSX.Element {
+export function McpServerDialog({ open, onOpenChange, entry, preset, hasProject, onSubmit }: Props): React.JSX.Element {
   const editing = Boolean(entry)
-  const [form, setForm] = useState<ServerForm>(() => (entry ? formFromEntry(entry) : emptyForm(hasProject ? 'local' : 'user')))
+  const [form, setForm] = useState<ServerForm>(() => {
+    if (entry) return formFromEntry(entry)
+    const scope = hasProject ? 'local' : 'user'
+    return preset ? presetForm(preset, scope, /Windows/i.test(navigator.userAgent)) : emptyForm(scope)
+  })
   const [jsonMode, setJsonMode] = useState(false)
   const [jsonText, setJsonText] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})

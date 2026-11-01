@@ -208,3 +208,43 @@ export const SCOPE_LABEL: Record<McpScope, string> = {
   project: 'Project (.mcp.json)',
   user: 'User'
 }
+
+export interface McpPreset {
+  id: string
+  label: string
+  description: string
+  name: string
+  command: string
+  args: string[]
+}
+
+/** One-click browser-testing servers. Prefilled into the add dialog; nothing is written until the user submits. */
+export const BROWSER_PRESETS: McpPreset[] = [
+  {
+    id: 'playwright',
+    label: 'Playwright',
+    description: 'Drives its own browser: navigate, click, fill, screenshot, read the accessibility tree.',
+    name: 'playwright',
+    command: 'npx',
+    args: ['-y', '@playwright/mcp@latest']
+  },
+  {
+    id: 'chrome-devtools',
+    label: 'Chrome DevTools',
+    description: 'Controls Chrome via DevTools: performance traces, network, console, DOM.',
+    name: 'chrome-devtools',
+    command: 'npx',
+    args: ['-y', 'chrome-devtools-mcp@latest']
+  }
+]
+
+/** On Windows, npx is a .cmd shim and must be launched through cmd /c for stdio MCP servers. */
+export function presetForm(p: McpPreset, scope: McpScope, windows: boolean): ServerForm {
+  const wrap = windows && p.command === 'npx'
+  return {
+    ...emptyForm(scope),
+    name: p.name,
+    command: wrap ? 'cmd' : p.command,
+    args: wrap ? ['/c', p.command, ...p.args] : [...p.args]
+  }
+}

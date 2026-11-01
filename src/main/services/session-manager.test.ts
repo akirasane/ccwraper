@@ -116,6 +116,19 @@ describe('SessionManager', () => {
     }
   })
 
+  it('passes chrome only when the preference is on', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ccwrap-'))
+    try {
+      const startSession = vi.fn(async () => fakeAdapter())
+      await new SessionManager(() => {}, { startSession, chrome: () => true }).start({ cwd: dir, prompt: 'hi' })
+      expect(startSession).toHaveBeenLastCalledWith(expect.objectContaining({ chrome: true }))
+      await new SessionManager(() => {}, { startSession, chrome: () => false }).start({ cwd: dir, prompt: 'hi' })
+      expect((startSession.mock.calls as unknown[][])[1]![0]).not.toHaveProperty('chrome')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('passes setModel / setPermissionMode through and caches supportedModels', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'ccwrap-'))
     try {
